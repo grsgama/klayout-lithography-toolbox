@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<salt-grain>
+ <name>klayout-lithography-toolbox</name>
+ <version>0.0.1</version>
+ <title>Lithography Toolbox PCell Library</title>
+ <description>A port of NIST Nanolithography Toolbox shapes as KLayout PCells.</description>
+ <author>grsgama</author>
+ <license>Public Domain</license>
+</salt-grain>

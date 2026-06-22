@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description>NIST Litho Library Loader</description>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import sys
+import os
+import pya
+
+# Adiciona o diretório "python" do pacote ao path se necessário
+pymacro_dir = os.path.dirname(os.path.abspath(__file__))
+package_dir = os.path.dirname(pymacro_dir)
+python_dir = os.path.join(package_dir, "python")
+
+if python_dir not in sys.path:
+    sys.path.append(python_dir)
+
+try:
+    # Recarrega o módulo caso já tenha sido importado antes (facilita desenvolvimento)
+    if "register_library" in sys.modules:
+        import importlib
+        importlib.reload(sys.modules["register_library"])
+    else:
+        import register_library
+except Exception as e:
+    pya.Logger.error(f"Erro ao carregar a biblioteca NIST Litho Library: {e}")
+</text>
+</klayout-macro>
