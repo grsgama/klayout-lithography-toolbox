@@ -45,6 +45,9 @@ class RectangularArrayPCell(pya.PCellDeclarationHelper):
         self.param("dy", self.TypeDouble, "Pitch Y (um)", default = 10.0)
         self.param("x_offset", self.TypeDouble, "Offset X (um)", default = 0.0)
         self.param("y_offset", self.TypeDouble, "Offset Y (um)", default = 0.0)
+        self.param("fallback_shape", self.TypeString, "Fallback Shape", default = "Square", choices = [["Square", "Square"], ["Circle", "Circle"], ["Cross", "Cross"], ["None", "None"]])
+        self.param("fallback_w", self.TypeDouble, "Fallback Width (um)", default = 1.0)
+        self.param("fallback_h", self.TypeDouble, "Fallback Height (um)", default = 1.0)
 
     def display_text_impl(self):
         return f"RectArray({self.cell_name}, {self.nx}x{self.ny})"
@@ -52,6 +55,8 @@ class RectangularArrayPCell(pya.PCellDeclarationHelper):
     def coerce_parameters_impl(self):
         if self.nx < 1: self.nx = 1
         if self.ny < 1: self.ny = 1
+        if self.fallback_w < 0.01: self.fallback_w = 0.01
+        if self.fallback_h < 0.01: self.fallback_h = 0.01
 
     def produce_impl(self):
         layer_idx = self.layout.layer(self.layer)
@@ -61,14 +66,26 @@ class RectangularArrayPCell(pya.PCellDeclarationHelper):
             inst = pya.CellInstArray(target.cell_index(), pya.Trans(int(self.x_offset/dbu), int(self.y_offset/dbu)), 
                                       pya.Vector(int(self.dx/dbu), 0), pya.Vector(0, int(self.dy/dbu)), self.nx, self.ny)
             self.cell.insert(inst)
-        else:
+        elif self.fallback_shape != "None":
             # Fallback marker
             for ix in range(self.nx):
                 for iy in range(self.ny):
                     cx = self.x_offset + ix * self.dx
                     cy = self.y_offset + iy * self.dy
-                    box = pya.Box(int((cx - 0.5)/dbu), int((cy - 0.5)/dbu), int((cx + 0.5)/dbu), int((cy + 0.5)/dbu))
-                    self.cell.shapes(layer_idx).insert(box)
+                    if self.fallback_shape == "Square":
+                        box = pya.Box(int((cx - self.fallback_w/2.0)/dbu), int((cy - self.fallback_h/2.0)/dbu),
+                                      int((cx + self.fallback_w/2.0)/dbu), int((cy + self.fallback_h/2.0)/dbu))
+                        self.cell.shapes(layer_idx).insert(box)
+                    elif self.fallback_shape == "Circle":
+                        poly = ex.draw_ellipse(dbu, cx, cy, self.fallback_w/2.0, self.fallback_h/2.0, 32)
+                        self.cell.shapes(layer_idx).insert(poly)
+                    elif self.fallback_shape == "Cross":
+                        horiz = pya.Box(int((cx - self.fallback_w/2.0)/dbu), int((cy - self.fallback_h/10.0)/dbu),
+                                        int((cx + self.fallback_w/2.0)/dbu), int((cy + self.fallback_h/10.0)/dbu))
+                        vert = pya.Box(int((cx - self.fallback_w/10.0)/dbu), int((cy - self.fallback_h/2.0)/dbu),
+                                       int((cx + self.fallback_w/10.0)/dbu), int((cy + self.fallback_h/2.0)/dbu))
+                        self.cell.shapes(layer_idx).insert(horiz)
+                        self.cell.shapes(layer_idx).insert(vert)
 
 # 3. Hexagonal Arrays
 class HexagonalArrayPCell(pya.PCellDeclarationHelper):
@@ -81,6 +98,9 @@ class HexagonalArrayPCell(pya.PCellDeclarationHelper):
         self.param("dx", self.TypeDouble, "Pitch X (um)", default = 10.0)
         self.param("x_offset", self.TypeDouble, "Offset X (um)", default = 0.0)
         self.param("y_offset", self.TypeDouble, "Offset Y (um)", default = 0.0)
+        self.param("fallback_shape", self.TypeString, "Fallback Shape", default = "Square", choices = [["Square", "Square"], ["Circle", "Circle"], ["Cross", "Cross"], ["None", "None"]])
+        self.param("fallback_w", self.TypeDouble, "Fallback Width (um)", default = 1.0)
+        self.param("fallback_h", self.TypeDouble, "Fallback Height (um)", default = 1.0)
 
     def display_text_impl(self):
         return f"HexArray({self.cell_name}, {self.nx}x{self.ny})"
@@ -89,6 +109,8 @@ class HexagonalArrayPCell(pya.PCellDeclarationHelper):
         if self.nx < 1: self.nx = 1
         if self.ny < 1: self.ny = 1
         if self.dx <= 0: self.dx = 1.0
+        if self.fallback_w < 0.01: self.fallback_w = 0.01
+        if self.fallback_h < 0.01: self.fallback_h = 0.01
 
     def produce_impl(self):
         layer_idx = self.layout.layer(self.layer)
@@ -104,9 +126,23 @@ class HexagonalArrayPCell(pya.PCellDeclarationHelper):
                 if target:
                     inst = pya.CellInstArray(target.cell_index(), pya.Trans(int(x_coord/dbu), int(y_coord/dbu)))
                     self.cell.insert(inst)
-                else:
-                    box = pya.Box(int((x_coord - 0.5)/dbu), int((y_coord - 0.5)/dbu), int((x_coord + 0.5)/dbu), int((y_coord + 0.5)/dbu))
-                    self.cell.shapes(layer_idx).insert(box)
+                elif self.fallback_shape != "None":
+                    cx, cy = x_coord, y_coord
+                    if self.fallback_shape == "Square":
+                        box = pya.Box(int((cx - self.fallback_w/2.0)/dbu), int((cy - self.fallback_h/2.0)/dbu),
+                                      int((cx + self.fallback_w/2.0)/dbu), int((cy + self.fallback_h/2.0)/dbu))
+                        self.cell.shapes(layer_idx).insert(box)
+                    elif self.fallback_shape == "Circle":
+                        poly = ex.draw_ellipse(dbu, cx, cy, self.fallback_w/2.0, self.fallback_h/2.0, 32)
+                        self.cell.shapes(layer_idx).insert(poly)
+                    elif self.fallback_shape == "Cross":
+                        horiz = pya.Box(int((cx - self.fallback_w/2.0)/dbu), int((cy - self.fallback_h/10.0)/dbu),
+                                        int((cx + self.fallback_w/2.0)/dbu), int((cy + self.fallback_h/10.0)/dbu))
+                        vert = pya.Box(int((cx - self.fallback_w/10.0)/dbu), int((cy - self.fallback_h/2.0)/dbu),
+                                       int((cx + self.fallback_w/10.0)/dbu), int((cy + self.fallback_h/2.0)/dbu))
+                        self.cell.shapes(layer_idx).insert(horiz)
+                        self.cell.shapes(layer_idx).insert(vert)
+
 
 # 4. Polar Arrays
 class PolarArrayPCell(pya.PCellDeclarationHelper):
@@ -319,13 +355,19 @@ class InterdigitatedElectrodesPCell(pya.PCellDeclarationHelper):
 
 # 8. Resolution Test Pattern
 class ResolutionTestPatternPCell(pya.PCellDeclarationHelper):
-    def __init__(self):
+    def __init__(self, default_style="RS"):
         super(ResolutionTestPatternPCell, self).__init__()
         self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
-        self.param("style", self.TypeString, "Style (RS, LS)", default = "RS")
-        self.param("width", self.TypeDouble, "Line Width W (um)", default = 1.0)
-        self.param("height", self.TypeDouble, "Height H (um)", default = 20.0)
+        self.param("style", self.TypeString, "Style", default = default_style, choices = [["RS", "RS"], ["LS", "LS"], ["RSA", "RSA"], ["LSA", "LSA"], ["Star", "Star"], ["PiStar", "PiStar"]])
+        self.param("width", self.TypeDouble, "Line Width W (um) [RS/LS/Star]", default = 1.0)
+        self.param("height", self.TypeDouble, "Height H (um) [RS/LS/RSA/LSA]", default = 20.0)
         self.param("num_lines", self.TypeInt, "Number of lines", default = 5)
+        self.param("rad", self.TypeDouble, "Outer Radius (um) [Star/PiStar]", default = 50.0)
+        self.param("start_w", self.TypeDouble, "Start Width (um) [RSA/LSA]", default = 0.1)
+        self.param("end_w", self.TypeDouble, "End Width (um) [RSA/LSA]", default = 1.0)
+        self.param("delta_w", self.TypeDouble, "Delta Width (um) [RSA/LSA]", default = 0.1)
+        self.param("space", self.TypeDouble, "Space (um) [RSA/LSA]", default = 2.0)
+        self.param("n", self.TypeInt, "Cycles N [PiStar]", default = 12)
 
     def display_text_impl(self):
         return f"ResolutionPattern({self.style}, W={self.width:.2f}um)"
@@ -334,6 +376,12 @@ class ResolutionTestPatternPCell(pya.PCellDeclarationHelper):
         if self.width <= 0: self.width = 0.05
         if self.height <= 0: self.height = 1.0
         if self.num_lines < 1: self.num_lines = 1
+        if self.rad <= 0: self.rad = 1.0
+        if self.start_w <= 0: self.start_w = 0.01
+        if self.end_w < self.start_w: self.end_w = self.start_w + 0.1
+        if self.delta_w <= 0: self.delta_w = 0.01
+        if self.space < 0: self.space = 0.0
+        if self.n < 1: self.n = 1
 
     def produce_impl(self):
         layer_idx = self.layout.layer(self.layer)
@@ -346,6 +394,8 @@ class ResolutionTestPatternPCell(pya.PCellDeclarationHelper):
                 region.insert(pya.Box(int((2 * i * self.width)/dbu), 0, int(((2 * i + 1) * self.width)/dbu), int(self.height/dbu)))
                 # Top vertical bar
                 region.insert(pya.Box(int(((2 * i + 1) * self.width)/dbu), int(self.height/dbu), int(((2 * i + 2) * self.width)/dbu), int((2 * self.height)/dbu)))
+            ex.draw_text(self.layout, self.cell, self.layer, f"{self.width:.3g}", 0.0, 2.5 * self.height, 2.0 * self.height)
+            
         elif self.style == "LS":
             height = self.height
             for i in range(self.num_lines):
@@ -361,8 +411,58 @@ class ResolutionTestPatternPCell(pya.PCellDeclarationHelper):
                     height -= 2.0 * self.width
                 else:
                     break
-                    
+            ex.draw_text(self.layout, self.cell, self.layer, f"{self.width:.3g}", 0.0, 1.5 * self.height, self.height)
+            
+        elif self.style == "RSA":
+            curr_x = 0.0
+            w = self.start_w
+            while w <= self.end_w + 1e-9:
+                for i in range(self.num_lines):
+                    region.insert(pya.Box(int((curr_x + 2 * i * w)/dbu), 0, int((curr_x + (2 * i + 1) * w)/dbu), int(self.height/dbu)))
+                    region.insert(pya.Box(int((curr_x + (2 * i + 1) * w)/dbu), int(self.height/dbu), int((curr_x + (2 * i + 2) * w)/dbu), int((2 * self.height)/dbu)))
+                ex.draw_text(self.layout, self.cell, self.layer, f"{w:.3g}", curr_x, 2.5 * self.height, 2.0 * self.height)
+                curr_x += 2.0 * self.num_lines * w + self.space
+                w += self.delta_w
+                
+        elif self.style == "LSA":
+            curr_x = 0.0
+            w = self.start_w
+            while w <= self.end_w + 1e-9:
+                h = self.height
+                for i in range(self.num_lines):
+                    if w < h:
+                        v_box = pya.Box(0, 0, int(w/dbu), int(h/dbu))
+                        h_box = pya.Box(0, 0, int(h/dbu), int(w/dbu))
+                        l_shape = pya.Region(v_box).join(pya.Region(h_box))
+                        l_shape.transform(pya.Trans(int((curr_x + 2 * i * w)/dbu), int((2 * i * w)/dbu)))
+                        region.insert(l_shape)
+                        h -= 2.0 * w
+                    else:
+                        break
+                ex.draw_text(self.layout, self.cell, self.layer, f"{w:.3g}", curr_x, 1.5 * self.height, self.height)
+                curr_x += self.height + self.space
+                w += self.delta_w
+                
+        elif self.style in ["Star", "PiStar"]:
+            is_pi = (self.style == "PiStar")
+            w = (self.n * math.pi) if is_pi else self.width
+            num_elements = int((math.pi * 2.0 * self.rad) / (2.0 * w))
+            if num_elements < 2:
+                num_elements = 2
+            d_theta = math.pi * 2.0 / num_elements
+            for i in range(num_elements):
+                theta = i * d_theta
+                pts = [
+                    pya.Point(0, 0),
+                    pya.Point(int((self.rad * math.cos(theta) - (-w/2.0) * math.sin(theta))/dbu),
+                              int((self.rad * math.sin(theta) + (-w/2.0) * math.cos(theta))/dbu)),
+                    pya.Point(int((self.rad * math.cos(theta) - (w/2.0) * math.sin(theta))/dbu),
+                              int((self.rad * math.sin(theta) + (w/2.0) * math.cos(theta))/dbu))
+                ]
+                region.insert(pya.Polygon(pts))
+                
         self.cell.shapes(layer_idx).insert(region)
+
 
 # 9. Spirals
 class SpiralsPCell(pya.PCellDeclarationHelper):
@@ -1528,9 +1628,9 @@ class BolometerPCell(pya.PCellDeclarationHelper):
 
 # 25. Anchored Flexures (Section 2.10.4)
 class AnchoredFlexuresPCell(pya.PCellDeclarationHelper):
-    def __init__(self):
+    def __init__(self, default_type="V4A"):
         super(AnchoredFlexuresPCell, self).__init__()
-        self.param("type", self.TypeString, "Type", default = "V4A", choices = [["V2B", "V2B"], ["V2E", "V2E"], ["V4A", "V4A"], ["V4B", "V4B"], ["V4C", "V4C"], ["V4D", "V4D"], ["V4E", "V4E"]])
+        self.param("type", self.TypeString, "Type", default = default_type, choices = [["V2A", "V2A"], ["V2B", "V2B"], ["V2C", "V2C"], ["V2D", "V2D"], ["V2E", "V2E"], ["V4A", "V4A"], ["V4B", "V4B"], ["V4C", "V4C"], ["V4D", "V4D"], ["V4E", "V4E"]])
         self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
         self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
         self.param("width1", self.TypeDouble, "Beam Width 1 (um)", default = 2.0)
@@ -1791,7 +1891,7 @@ class AnchoredFlexuresPCell(pya.PCellDeclarationHelper):
                 a_right = a_left.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
                 anchors.insert(a_left).insert(a_right)
                 
-        else: # V2E
+        elif self.type == "V2E":
             ga.insert(pya.Box(int(-self.width1/(2.0*dbu)), int(-self.length1/(2.0*dbu)), int(self.width1/(2.0*dbu)), int(self.length1/(2.0*dbu))))
             
             startX = -self.width1/2.0 - self.length3
@@ -1821,6 +1921,81 @@ class AnchoredFlexuresPCell(pya.PCellDeclarationHelper):
             startY_side = -self.length1/2.0 - self.width3/2.0 - self.width4/2.0 - self.length4
             ga.insert(pya.Box(int(startX_side/dbu), int(startY_side/dbu), int((startX_side + self.width5)/dbu), int((-startY_side)/dbu)))
             ga.insert(pya.Box(int((-startX_side - self.width5)/dbu), int(startY_side/dbu), int((-startX_side)/dbu), int((-startY_side)/dbu)))
+        elif self.type == "V2A":
+            ga.insert(pya.Box(int(-self.width_mass/(2.0*dbu)), int(-self.length_mass/(2.0*dbu)), int(self.width_mass/(2.0*dbu)), int(self.length_mass/(2.0*dbu))))
+            boxW = 1.5 * self.width1 + self.length2 + self.base_width / 2.0
+            boxH = 2.0 * self.length1 + self.length_mass
+            meander = pya.Region(pya.Box(int(-boxW/(2.0*dbu)), int(-boxH/(2.0*dbu)), int(boxW/(2.0*dbu)), int(boxH/(2.0*dbu))))
+            meander -= pya.Region(pya.Box(int((-boxW/2.0 + self.width1)/dbu), int((-boxH/2.0 + self.width1)/dbu), int((boxW/2.0 - self.width1)/dbu), int((boxH/2.0 - self.width1)/dbu)))
+            temp = meander.dup().transform(pya.Trans(int((-self.width_mass/2.0 - boxW/2.0 + self.width1)/dbu), 0))
+            ga.insert(temp)
+            mirror = temp.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+            ga.insert(mirror)
+            bp = pya.Region(pya.Box(int(-self.base_width/(2.0*dbu)), int(-self.base_height/(2.0*dbu)), int(self.base_width/(2.0*dbu)), int(self.base_height/(2.0*dbu))))
+            bp_left = bp.dup().transform(pya.Trans(int((-self.width_mass/2.0 - self.length2 - self.base_width/2.0)/dbu), 0))
+            ga.insert(bp_left)
+            bp_right = bp_left.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+            ga.insert(bp_right)
+            if self.anchor_distance < self.base_width/2.0 and self.anchor_distance < self.base_height/2.0:
+                anc_t = pya.Region(pya.Box(int((-self.base_width/2.0 + self.anchor_distance)/dbu), int((-self.base_height/2.0 + self.anchor_distance)/dbu), int((self.base_width/2.0 - self.anchor_distance)/dbu), int((self.base_height/2.0 - self.anchor_distance)/dbu)))
+                a_left = anc_t.dup().transform(pya.Trans(int((-self.width_mass/2.0 - self.length2 - self.base_width/2.0)/dbu), 0))
+                a_right = a_left.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+                anchors.insert(a_left).insert(a_right)
+        elif self.type == "V2C":
+            ga.insert(pya.Box(int(-self.width_mass/(2.0*dbu)), int(-self.length_mass/(2.0*dbu)), int(self.width_mass/(2.0*dbu)), int(self.length_mass/(2.0*dbu))))
+            startX = self.base_width / 2.0
+            pts_path = [pya.DPoint(startX, 0.0), pya.DPoint(startX + self.length1, 0.0)]
+            delta = self.length2 / (float(self.periods) * 2.0)
+            i_val = 0.0
+            while i_val < self.length2 - 1e-9:
+                pts_path.append(pya.DPoint(i_val + startX + self.length1, self.amplitude))
+                pts_path.append(pya.DPoint(i_val + delta + startX + self.length1, self.amplitude))
+                pts_path.append(pya.DPoint(i_val + delta + startX + self.length1, -self.amplitude))
+                pts_path.append(pya.DPoint(i_val + 2.0 * delta + startX + self.length1, -self.amplitude))
+                pts_path.append(pya.DPoint(i_val + 2.0 * delta + startX + self.length1, 0.0))
+                i_val += 2.0 * delta
+            pts_path.append(pya.DPoint(startX + self.length1 + self.length2, 0.0))
+            pts_path.append(pya.DPoint(startX + self.length1 + self.length2 + self.length3, 0.0))
+            path_pts = [pya.Point(int(p.x/dbu), int(p.y/dbu)) for p in pts_path]
+            path = pya.Path(path_pts, int(self.width1/dbu))
+            meander = pya.Region(path.simple_polygon())
+            bp = pya.Region(pya.Box(int(-self.base_width/(2.0*dbu)), int(-self.base_height/(2.0*dbu)), int(self.base_width/(2.0*dbu)), int(self.base_height/(2.0*dbu))))
+            meander.insert(bp)
+            dx_m = -self.base_width / 2.0 - self.length1 - self.length2 - self.length3 - self.width_mass / 2.0
+            meander.transform(pya.Trans(int(dx_m/dbu), 0))
+            mirror = meander.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+            ga.insert(meander).insert(mirror)
+            if self.anchor_distance < self.base_width/2.0 and self.anchor_distance < self.base_height/2.0:
+                anc_t = pya.Region(pya.Box(int((-self.base_width/2.0 + self.anchor_distance)/dbu), int((-self.base_height/2.0 + self.anchor_distance)/dbu), int((self.base_width/2.0 - self.anchor_distance)/dbu), int((self.base_height/2.0 - self.anchor_distance)/dbu)))
+                a_left = anc_t.dup().transform(pya.Trans(int(dx_m/dbu), 0))
+                a_right = a_left.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+                anchors.insert(a_left).insert(a_right)
+        elif self.type == "V2D":
+            ga.insert(pya.Box(int(-self.width1/(2.0*dbu)), int((-self.length1/2.0 - self.width4)/dbu), int(self.width1/(2.0*dbu)), int((self.length1/2.0 + self.width4)/dbu)))
+            w_ext = self.width1 / 2.0 + self.length4 + self.width2 + self.length5
+            ga.insert(pya.Box(int(-w_ext/dbu), int((-self.length1/2.0 - self.width4)/dbu), int(w_ext/dbu), int((-self.length1/2.0)/dbu)))
+            ga.insert(pya.Box(int(-w_ext/dbu), int((self.length1/2.0)/dbu), int(w_ext/dbu), int((self.length1/2.0 + self.width4)/dbu)))
+            startX = -self.width1 / 2.0 - self.length4 - self.width2
+            ga.insert(pya.Box(int(startX/dbu), int((self.length1/2.0 - self.length2 - self.width3)/dbu), int((startX + self.width2)/dbu), int((self.length1/2.0)/dbu)))
+            ga.insert(pya.Box(int(startX/dbu), int((-self.length1/2.0)/dbu), int((startX + self.width2)/dbu), int((-self.length1/2.0 + self.length2 + self.width3)/dbu)))
+            startX = self.width1 / 2.0 + self.length4
+            ga.insert(pya.Box(int(startX/dbu), int((self.length1/2.0 - self.length2 - self.width3)/dbu), int((startX + self.width2)/dbu), int((self.length1/2.0)/dbu)))
+            ga.insert(pya.Box(int(startX/dbu), int((-self.length1/2.0)/dbu), int((startX + self.width2)/dbu), int((-self.length1/2.0 + self.length2 + self.width3)/dbu)))
+            startX = -self.width1 / 2.0 - self.length4 - self.width2 - self.length3
+            ga.insert(pya.Box(int(startX/dbu), int((-self.length1/2.0 + self.length2)/dbu), int((startX + self.length3)/dbu), int((-self.length1/2.0 + self.length2 + self.width3)/dbu)))
+            ga.insert(pya.Box(int(startX/dbu), int((self.length1/2.0 - self.length2 - self.width3)/dbu), int((startX + self.length3)/dbu), int((self.length1/2.0 - self.length2)/dbu)))
+            startX = self.width1 / 2.0 + self.length4 + self.width2
+            ga.insert(pya.Box(int(startX/dbu), int((-self.length1/2.0 + self.length2)/dbu), int((startX + self.length3)/dbu), int((-self.length1/2.0 + self.length2 + self.width3)/dbu)))
+            ga.insert(pya.Box(int(startX/dbu), int((self.length1/2.0 - self.length2 - self.width3)/dbu), int((startX + self.length3)/dbu), int((self.length1/2.0 - self.length2)/dbu)))
+            startX = -self.width1 / 2.0 - self.length4 - self.width2 - self.length3 - self.base_width
+            startY = -self.length1 / 2.0 + self.length2 - self.length6
+            middleElectrodeHeight = self.length1 - 2.0 * self.length2
+            h_base = 2.0 * self.length6 + middleElectrodeHeight
+            ga.insert(pya.Box(int(startX/dbu), int(startY/dbu), int((startX + self.base_width)/dbu), int((startY + h_base)/dbu)))
+            anchors.insert(pya.Box(int((startX + self.anchor_distance)/dbu), int((startY + self.anchor_distance)/dbu), int((startX + self.base_width - self.anchor_distance)/dbu), int((startY + h_base - self.anchor_distance)/dbu)))
+            startX = self.width1 / 2.0 + self.length4 + self.width2 + self.length3
+            ga.insert(pya.Box(int(startX/dbu), int(startY/dbu), int((startX + self.base_width)/dbu), int((startY + h_base)/dbu)))
+            anchors.insert(pya.Box(int((startX + self.anchor_distance)/dbu), int((startY + self.anchor_distance)/dbu), int((startX + self.base_width - self.anchor_distance)/dbu), int((startY + h_base - self.anchor_distance)/dbu)))
             
         ga.merge()
         anchors.merge()
@@ -2397,3 +2572,982 @@ class SuspendedFluidCellPCell(pya.PCellDeclarationHelper):
         smallerBondPad.insert(temp_sbp)
         smallerBondPad.merge()
         self.cell.shapes(lyr_f).insert(smallerBondPad)
+
+
+# =====================================================================
+# EXTRA PCells Exposing CNST / MEMS Native Names
+# =====================================================================
+
+# 1. Resolution Pattern Subclasses
+class ResoPatternPCell(ResolutionTestPatternPCell):
+    def __init__(self):
+        super(ResoPatternPCell, self).__init__(default_style="Star")
+
+class ResoPatternPiPCell(ResolutionTestPatternPCell):
+    def __init__(self):
+        super(ResoPatternPiPCell, self).__init__(default_style="PiStar")
+
+class ResoPatternLSAPCell(ResolutionTestPatternPCell):
+    def __init__(self):
+        super(ResoPatternLSAPCell, self).__init__(default_style="LSA")
+
+
+# 2. Spirals (Archimedean, Fermat, Logarithmic)
+class SpiralArchPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralArchPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("width", self.TypeDouble, "Line Width (um)", default = 1.0)
+        self.param("turns", self.TypeInt, "Number of Turns", default = 5)
+        self.param("separation", self.TypeDouble, "Separation (um)", default = 2.0)
+        self.param("inc", self.TypeDouble, "Angle Increment (rad)", default = 0.1)
+
+    def display_text_impl(self):
+        return f"spiralArch(Turns={self.turns}, W={self.width:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.1
+        if self.turns < 1: self.turns = 1
+        if self.separation < 0: self.separation = 0.0
+        if self.inc <= 0: self.inc = 0.01
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_arch(self.layout, self.width, self.turns, self.separation, self.inc)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralFermatPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralFermatPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("width", self.TypeDouble, "Line Width (um)", default = 1.0)
+        self.param("turns", self.TypeInt, "Number of Turns", default = 5)
+        self.param("a", self.TypeDouble, "Coefficient A", default = 2.0)
+        self.param("inc", self.TypeDouble, "Angle Increment (rad)", default = 0.1)
+
+    def display_text_impl(self):
+        return f"spiralFermat(Turns={self.turns}, a={self.a:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.1
+        if self.turns < 1: self.turns = 1
+        if self.a <= 0: self.a = 0.1
+        if self.inc <= 0: self.inc = 0.01
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_fermat(self.layout, self.width, self.turns, self.a, self.inc)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralLogPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralLogPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("width", self.TypeDouble, "Line Width (um)", default = 1.0)
+        self.param("turns", self.TypeInt, "Number of Turns", default = 5)
+        self.param("a", self.TypeDouble, "Coefficient A", default = 1.0)
+        self.param("b", self.TypeDouble, "Coefficient B", default = 0.1)
+        self.param("inc", self.TypeDouble, "Angle Increment (rad)", default = 0.1)
+
+    def display_text_impl(self):
+        return f"spiralLog(Turns={self.turns}, a={self.a:.1f}, b={self.b:.2f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.1
+        if self.turns < 1: self.turns = 1
+        if self.a <= 0: self.a = 0.1
+        if self.inc <= 0: self.inc = 0.01
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_log(self.layout, self.width, self.turns, self.a, self.b, self.inc)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+# 3. Spiral Delay Lines
+class SpiralDelayLineArchPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineArchPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("separation", self.TypeDouble, "Separation (um)", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineArch(Turns={self.turns})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.separation < 0: self.separation = 0.0
+        if self.resolution < 8: self.resolution = 8
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Archimedean", self.turns, self.width, self.separation, 0.0, self.resolution, self.length, False, 0.0, 0)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralDelayLineFermatPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineFermatPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("a", self.TypeDouble, "Coefficient a", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineFermat(Turns={self.turns}, a={self.a:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.a <= 0: self.a = 0.1
+        if self.resolution < 8: self.resolution = 8
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Fermat", self.turns, self.width, 0.0, self.a, self.resolution, self.length, False, 0.0, 0)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralDelayLineArchV2PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineArchV2PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("separation", self.TypeDouble, "Separation (um)", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("skipped_turns", self.TypeInt, "Skipped Turns", default = 1)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineArchV2(Turns={self.turns}, Skipped={self.skipped_turns})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.separation < 0: self.separation = 0.0
+        if self.resolution < 8: self.resolution = 8
+        if self.skipped_turns < 0: self.skipped_turns = 0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Archimedean", self.turns, self.width, self.separation, 0.0, self.resolution, self.length, False, 0.0, self.skipped_turns)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralDelayLineArchInvPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineArchInvPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("separation", self.TypeDouble, "Separation (um)", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+        self.param("sleeveWidth", self.TypeDouble, "Sleeve Width (um)", default = 3.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineArchInv(Turns={self.turns})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.separation < 0: self.separation = 0.0
+        if self.resolution < 8: self.resolution = 8
+        if self.sleeveWidth <= 0: self.sleeveWidth = 0.1
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Archimedean", self.turns, self.width, self.separation, 0.0, self.resolution, self.length, True, self.sleeveWidth, 0)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralDelayLineFermatInvPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineFermatInvPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("a", self.TypeDouble, "Coefficient a", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+        self.param("sleeveWidth", self.TypeDouble, "Sleeve Width (um)", default = 3.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineFermatInv(Turns={self.turns})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.a <= 0: self.a = 0.1
+        if self.resolution < 8: self.resolution = 8
+        if self.sleeveWidth <= 0: self.sleeveWidth = 0.1
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Fermat", self.turns, self.width, 0.0, self.a, self.resolution, self.length, True, self.sleeveWidth, 0)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+class SpiralDelayLineArchV2InvPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(SpiralDelayLineArchV2InvPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("turns", self.TypeInt, "Number of turns", default = 5)
+        self.param("width", self.TypeDouble, "Width (um)", default = 1.0)
+        self.param("separation", self.TypeDouble, "Separation (um)", default = 2.0)
+        self.param("resolution", self.TypeInt, "Resolution", default = 64)
+        self.param("skipped_turns", self.TypeInt, "Skipped Turns", default = 1)
+        self.param("length", self.TypeDouble, "Length (um)", default = 20.0)
+        self.param("sleeveWidth", self.TypeDouble, "Sleeve Width (um)", default = 3.0)
+
+    def display_text_impl(self):
+        return f"spiralDelayLineArchV2Inv(Turns={self.turns}, Skipped={self.skipped_turns})"
+
+    def coerce_parameters_impl(self):
+        if self.turns < 1: self.turns = 1
+        if self.width <= 0: self.width = 0.1
+        if self.separation < 0: self.separation = 0.0
+        if self.resolution < 8: self.resolution = 8
+        if self.skipped_turns < 0: self.skipped_turns = 0
+        if self.sleeveWidth <= 0: self.sleeveWidth = 0.1
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_spiral_delay_line_generic(self.layout, "Archimedean", self.turns, self.width, self.separation, 0.0, self.resolution, self.length, True, self.sleeveWidth, self.skipped_turns)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+# 4. MEMS Actuators & Drives
+class BentBeamActuatorPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(BentBeamActuatorPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("width", self.TypeDouble, "Beam Width (um)", default = 2.0)
+        self.param("length1", self.TypeDouble, "Total Width (Span) (um)", default = 200.0)
+        self.param("length2", self.TypeDouble, "Half Span Offset (um)", default = 100.0)
+        self.param("length3", self.TypeDouble, "Apex Height (um)", default = 10.0)
+        self.param("baseHeight", self.TypeDouble, "Anchor Pad Height (um)", default = 20.0)
+        self.param("baseWidth", self.TypeDouble, "Anchor Pad Width (um)", default = 30.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"bentBeam(L1={self.length1:.1f}, H={self.length3:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.5
+        if self.length1 <= 0: self.length1 = 10.0
+        if self.baseHeight <= 0: self.baseHeight = 1.0
+        if self.baseWidth <= 0: self.baseWidth = 1.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_bent_beam(
+            self.layout, self.width, self.length1, self.length2, self.length3,
+            self.baseHeight, self.baseWidth, self.anchorDistance
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+
+
+class BentBeamArrayPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(BentBeamArrayPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("dimple_layer", self.TypeLayer, "Dimple Layer", default = pya.LayerInfo(3, 0))
+        self.param("width", self.TypeDouble, "Beam Width (um)", default = 2.0)
+        self.param("length1", self.TypeDouble, "Beam Length 1 (um)", default = 200.0)
+        self.param("length2", self.TypeDouble, "Beam Length 2 (um)", default = 100.0)
+        self.param("length3", self.TypeDouble, "Beam Length 3 (um)", default = 10.0)
+        self.param("length4", self.TypeDouble, "Beam Length 4 (um)", default = 5.0)
+        self.param("hOffset", self.TypeDouble, "Offset H (um)", default = 10.0)
+        self.param("pitch", self.TypeDouble, "Pitch (um)", default = 15.0)
+        self.param("numElements", self.TypeInt, "Number of Elements", default = 5)
+        self.param("centralBeamWidth", self.TypeDouble, "Central Beam Width (um)", default = 6.0)
+        self.param("dimpleHeight", self.TypeDouble, "Dimple Height (um)", default = 2.0)
+        self.param("dimpleWidth", self.TypeDouble, "Dimple Width (um)", default = 4.0)
+        self.param("baseWidth", self.TypeDouble, "Anchor Pad Width (um)", default = 30.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"bentBeamArray(N={self.numElements})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.5
+        if self.numElements < 1: self.numElements = 1
+        if self.pitch <= 0: self.pitch = 1.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        dimple_idx = self.layout.layer(self.dimple_layer)
+        r_struct, r_anc, r_dimp = ex.draw_bent_beam_array(
+            self.layout, self.width, self.length1, self.length2, self.length3, self.length4,
+            self.hOffset, self.pitch, self.numElements, self.centralBeamWidth,
+            self.dimpleHeight, self.dimpleWidth, self.baseWidth, self.anchorDistance
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+        self.cell.shapes(dimple_idx).insert(r_dimp)
+
+
+class CombDriveV1PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CombDriveV1PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer 1", default = pya.LayerInfo(1, 0))
+        self.param("layer2", self.TypeLayer, "Structural Layer 2", default = pya.LayerInfo(2, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(3, 0))
+        self.param("width1", self.TypeDouble, "Electrode Width (um)", default = 2.0)
+        self.param("width2", self.TypeDouble, "Base Width 2 (um)", default = 4.0)
+        self.param("length1", self.TypeDouble, "Electrode Length (um)", default = 40.0)
+        self.param("length2", self.TypeDouble, "Overlap/Displacement (um)", default = 20.0)
+        self.param("numElectrodes", self.TypeInt, "Number of Electrodes", default = 10)
+        self.param("pitch", self.TypeDouble, "Pitch (um)", default = 10.0)
+        self.param("baseHeight", self.TypeDouble, "Base Height (um)", default = 10.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"combDriveV1(N={self.numElectrodes})"
+
+    def coerce_parameters_impl(self):
+        if self.width1 <= 0: self.width1 = 0.5
+        if self.width2 <= 0: self.width2 = 0.5
+        if self.length1 <= 0: self.length1 = 5.0
+        if self.length2 <= 0: self.length2 = 5.0
+        if self.numElectrodes < 2: self.numElectrodes = 2
+        if self.pitch <= self.width1: self.pitch = self.width1 + 1.0
+        if self.baseHeight <= 0: self.baseHeight = 2.0
+        if self.anchorDistance < 0: self.anchorDistance = 0.0
+
+    def produce_impl(self):
+        lyr1 = self.layout.layer(self.layer)
+        lyr2 = self.layout.layer(self.layer2)
+        lyr_anc = self.layout.layer(self.anchor_layer)
+        r_top, r_bottom, r_anchor = ex.draw_comb_drive_v1(self.layout, self.width1, self.width2, self.length1, self.length2, self.numElectrodes, self.pitch, self.baseHeight, 0, self.anchorDistance, 0)
+        self.cell.shapes(lyr1).insert(r_top)
+        self.cell.shapes(lyr2).insert(r_bottom)
+        self.cell.shapes(lyr_anc).insert(r_anchor)
+
+
+class LinearDriveV1PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(LinearDriveV1PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Electrodes Layer", default = pya.LayerInfo(1, 0))
+        self.param("rotor_layer", self.TypeLayer, "Rotor/Middle Layer", default = pya.LayerInfo(2, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(3, 0))
+        self.param("width1", self.TypeDouble, "Rotor Finger Width (um)", default = 2.0)
+        self.param("length1", self.TypeDouble, "Finger Length (um)", default = 40.0)
+        self.param("length2", self.TypeDouble, "Rotor Base Height (um)", default = 20.0)
+        self.param("length3", self.TypeDouble, "Rotor Extent (um)", default = 20.0)
+        self.param("gap", self.TypeDouble, "Gap (um)", default = 2.0)
+        self.param("numElectrodes", self.TypeInt, "Number of Stator Electrodes", default = 10)
+        self.param("pitch", self.TypeDouble, "Stator Pitch (um)", default = 20.0)
+        self.param("baseHeight", self.TypeDouble, "Stator Pad Height (um)", default = 40.0)
+        self.param("baseWidth", self.TypeDouble, "Stator Pad Width (um)", default = 15.0)
+        self.param("rotorPitch", self.TypeDouble, "Rotor Pitch (um)", default = 10.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"linearDriveV1(N={self.numElectrodes})"
+
+    def coerce_parameters_impl(self):
+        if self.width1 <= 0: self.width1 = 0.5
+        if self.length1 <= 0: self.length1 = 5.0
+        if self.length2 <= 0: self.length2 = 5.0
+        if self.length3 < 0: self.length3 = 0.0
+        if self.gap <= 0: self.gap = 0.1
+        if self.numElectrodes < 2: self.numElectrodes = 2
+        if self.pitch <= self.baseWidth: self.pitch = self.baseWidth + 1.0
+        if self.baseHeight <= 0: self.baseHeight = 5.0
+        if self.baseWidth <= 0: self.baseWidth = 5.0
+        if self.rotorPitch <= 0: self.rotorPitch = 1.0
+        if self.anchorDistance < 0: self.anchorDistance = 0.0
+
+    def produce_impl(self):
+        lyr_elec = self.layout.layer(self.layer)
+        lyr_rotor = self.layout.layer(self.rotor_layer)
+        lyr_anc = self.layout.layer(self.anchor_layer)
+        r_elec, r_anc, r_rotor = ex.draw_linear_drive_v1(
+            self.layout, self.width1, self.length1, self.length2, self.length3, self.gap,
+            self.numElectrodes, self.pitch, self.baseHeight, self.baseWidth, self.rotorPitch, self.anchorDistance
+        )
+        self.cell.shapes(lyr_elec).insert(r_elec)
+        self.cell.shapes(lyr_rotor).insert(r_rotor)
+        self.cell.shapes(lyr_anc).insert(r_anc)
+
+
+# 5. MEMS Springs
+class StraightSpringPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(StraightSpringPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(4, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(7, 0))
+        self.param("w", self.TypeDouble, "Spoke/Beam Width (um)", default = 1.0)
+        self.param("r_hub", self.TypeDouble, "Inner Hub Radius (um)", default = 4.0)
+        self.param("w_ring", self.TypeDouble, "Outer Ring Width (um)", default = 3.4)
+        self.param("r_ring", self.TypeDouble, "Outer Ring Radius (um)", default = 40.0)
+        self.param("n_sides", self.TypeInt, "Rendering Resolution", default = 128)
+        self.param("n_spokes", self.TypeInt, "Number of Spokes", default = 18)
+        self.param("anchor_dist", self.TypeDouble, "Anchor Inset (um)", default = 0.2)
+
+    def display_text_impl(self):
+        return f"straightSpring(R={self.r_ring:.1f}um, Spokes={self.n_spokes})"
+
+    def coerce_parameters_impl(self):
+        if self.w < 0.1: self.w = 0.1
+        if self.r_hub < 1.0: self.r_hub = 1.0
+        if self.w_ring < 0.1: self.w_ring = 0.1
+        if self.r_ring <= self.r_hub + self.w_ring: self.r_ring = self.r_hub + self.w_ring + 5.0
+        if self.n_sides < 8: self.n_sides = 8
+        if self.n_spokes < 2: self.n_spokes = 2
+
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        lyr_anc = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_straight_spring(self.layout, lyr, lyr_anc, self.w, self.r_hub, self.w_ring, self.r_ring, self.n_sides, self.n_spokes, self.anchor_dist)
+        self.cell.shapes(lyr).insert(r_struct)
+        self.cell.shapes(lyr_anc).insert(r_anc)
+
+
+class StraightSpringEPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(StraightSpringEPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(4, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(7, 0))
+        self.param("w", self.TypeDouble, "Spoke/Beam Width (um)", default = 1.0)
+        self.param("r_hub", self.TypeDouble, "Inner Hub Radius (um)", default = 4.0)
+        self.param("w_ring", self.TypeDouble, "Outer Ring Width (um)", default = 3.4)
+        self.param("r_ring", self.TypeDouble, "Outer Ring Radius (um)", default = 40.0)
+        self.param("n_sides", self.TypeInt, "Rendering Resolution", default = 128)
+        self.param("n_spokes", self.TypeInt, "Number of Spokes", default = 18)
+        self.param("gap", self.TypeDouble, "Electrode Gap (um)", default = 2.0)
+        self.param("electrodeWidth", self.TypeDouble, "Electrode Width (um)", default = 2.0)
+        self.param("numElectrodes", self.TypeInt, "Number of Electrodes", default = 4)
+        self.param("gapFraction", self.TypeDouble, "Gap Fraction", default = 0.5)
+        self.param("anchorElectrodeDistance", self.TypeDouble, "Electrode Anchor Distance (um)", default = 2.0)
+        self.param("anchor_dist", self.TypeDouble, "Anchor Inset (um)", default = 0.2)
+
+    def display_text_impl(self):
+        return f"straightSpringE(R={self.r_ring:.1f}um)"
+
+    def coerce_parameters_impl(self):
+        if self.w < 0.1: self.w = 0.1
+        if self.r_hub < 1.0: self.r_hub = 1.0
+        if self.w_ring < 0.1: self.w_ring = 0.1
+        if self.r_ring <= self.r_hub + self.w_ring: self.r_ring = self.r_hub + self.w_ring + 5.0
+        if self.n_sides < 8: self.n_sides = 8
+        if self.numElectrodes < 1: self.numElectrodes = 1
+
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        lyr_anc = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_straight_spring_electrodes(
+            self.layout, lyr, lyr_anc, self.w, self.r_hub, self.w_ring, self.r_ring, self.n_sides, self.n_spokes,
+            self.gap, self.electrodeWidth, self.numElectrodes, self.gapFraction, self.anchorElectrodeDistance, self.anchor_dist
+        )
+        self.cell.shapes(lyr).insert(r_struct)
+        self.cell.shapes(lyr_anc).insert(r_anc)
+
+
+class CircularSpringEPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CircularSpringEPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(4, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(7, 0))
+        self.param("w", self.TypeDouble, "Spoke/Beam Width (um)", default = 1.0)
+        self.param("r_hub", self.TypeDouble, "Inner Hub Radius (um)", default = 4.0)
+        self.param("w_ring", self.TypeDouble, "Outer Ring Width (um)", default = 3.4)
+        self.param("r_ring", self.TypeDouble, "Outer Ring Radius (um)", default = 40.0)
+        self.param("n_sides", self.TypeInt, "Rendering Resolution", default = 128)
+        self.param("n_spokes", self.TypeInt, "Number of Spokes", default = 18)
+        self.param("gap", self.TypeDouble, "Electrode Gap (um)", default = 2.0)
+        self.param("electrodeWidth", self.TypeDouble, "Electrode Width (um)", default = 2.0)
+        self.param("numElectrodes", self.TypeInt, "Number of Electrodes", default = 4)
+        self.param("gapFraction", self.TypeDouble, "Gap Fraction", default = 0.5)
+        self.param("anchorElectrodeDistance", self.TypeDouble, "Electrode Anchor Distance (um)", default = 2.0)
+        self.param("anchor_dist", self.TypeDouble, "Anchor Inset (um)", default = 0.2)
+
+    def display_text_impl(self):
+        return f"circularSpringE(R={self.r_ring:.1f}um)"
+
+    def coerce_parameters_impl(self):
+        if self.w < 0.1: self.w = 0.1
+        if self.r_hub < 1.0: self.r_hub = 1.0
+        if self.w_ring < 0.1: self.w_ring = 0.1
+        if self.r_ring <= self.r_hub + self.w_ring: self.r_ring = self.r_hub + self.w_ring + 5.0
+        if self.n_sides < 8: self.n_sides = 8
+        if self.numElectrodes < 1: self.numElectrodes = 1
+
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        lyr_anc = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_circular_spring_electrode(
+            self.layout, lyr, lyr_anc, self.w, self.r_hub, self.w_ring, self.r_ring, self.n_sides, self.n_spokes,
+            self.gap, self.electrodeWidth, self.numElectrodes, self.gapFraction, self.anchorElectrodeDistance, self.anchor_dist
+        )
+        self.cell.shapes(lyr).insert(r_struct)
+        self.cell.shapes(lyr_anc).insert(r_anc)
+
+
+# 6. Radial Comb Drives
+class CombRadialV1PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CombRadialV1PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("w1", self.TypeDouble, "Stator Finger Width (um)", default = 1.5)
+        self.param("r1", self.TypeDouble, "Stator Center Radius (um)", default = 100.0)
+        self.param("w2", self.TypeDouble, "Rotor Finger Width (um)", default = 1.5)
+        self.param("r2", self.TypeDouble, "Rotor Center Radius (um)", default = 101.5)
+        self.param("wc", self.TypeDouble, "Base/Spine Width (um)", default = 4.0)
+        self.param("gap", self.TypeDouble, "Gap (um)", default = 2.0)
+        self.param("numElements", self.TypeInt, "Number of Fingers", default = 10)
+        self.param("numSides", self.TypeInt, "Fingers Resolution", default = 64)
+        self.param("thetaALL", self.TypeDouble, "Total Angular Span (deg)", default = 20.0)
+        self.param("thetaOverlap", self.TypeDouble, "Angular Overlap (deg)", default = 10.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"combRadialV1(N={self.numElements})"
+
+    def coerce_parameters_impl(self):
+        if self.w1 <= 0: self.w1 = 0.1
+        if self.w2 <= 0: self.w2 = 0.1
+        if self.numElements < 1: self.numElements = 1
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_base, r_fingers, r_anc = ex.draw_comb_radial(
+            self.layout, self.w1, self.r1, self.w2, self.r2, self.wc, self.gap,
+            self.numElements, self.numSides, self.thetaALL, self.thetaOverlap, self.anchorDistance, False
+        )
+        self.cell.shapes(layer_idx).insert(r_base)
+        self.cell.shapes(layer_idx).insert(r_fingers)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+
+
+class CombRadialV2PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CombRadialV2PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("w1", self.TypeDouble, "Stator Finger Width (um)", default = 1.5)
+        self.param("r1", self.TypeDouble, "Stator Center Radius (um)", default = 100.0)
+        self.param("w2", self.TypeDouble, "Rotor Finger Width (um)", default = 1.5)
+        self.param("r2", self.TypeDouble, "Rotor Center Radius (um)", default = 101.5)
+        self.param("wc", self.TypeDouble, "Base/Spine Width (um)", default = 4.0)
+        self.param("gap", self.TypeDouble, "Gap (um)", default = 2.0)
+        self.param("numElements", self.TypeInt, "Number of Fingers", default = 10)
+        self.param("numSides", self.TypeInt, "Fingers Resolution", default = 64)
+        self.param("thetaALL", self.TypeDouble, "Total Angular Span (deg)", default = 20.0)
+        self.param("thetaOverlap", self.TypeDouble, "Angular Overlap (deg)", default = 10.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"combRadialV2(N={self.numElements})"
+
+    def coerce_parameters_impl(self):
+        if self.w1 <= 0: self.w1 = 0.1
+        if self.w2 <= 0: self.w2 = 0.1
+        if self.numElements < 1: self.numElements = 1
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_base, r_fingers, r_anc = ex.draw_comb_radial(
+            self.layout, self.w1, self.r1, self.w2, self.r2, self.wc, self.gap,
+            self.numElements, self.numSides, self.thetaALL, self.thetaOverlap, self.anchorDistance, True
+        )
+        self.cell.shapes(layer_idx).insert(r_base)
+        self.cell.shapes(layer_idx).insert(r_fingers)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+
+
+# 7. Folded Springs Subclasses
+class FoldedSpringBasePCell(pya.PCellDeclarationHelper):
+    def __init__(self, style_str="1A"):
+        super(FoldedSpringBasePCell, self).__init__()
+        self.style_str = style_str
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("width", self.TypeDouble, "Beam Width (um)", default = 1.5)
+        self.param("length1", self.TypeDouble, "Beam Length 1 (um)", default = 80.0)
+        self.param("length2", self.TypeDouble, "Beam Length 2 (um)", default = 80.0)
+        self.param("pitch", self.TypeDouble, "Pitch (um)", default = 10.0)
+        self.param("amplitude", self.TypeDouble, "Amplitude (um)", default = 15.0)
+        self.param("num_periods", self.TypeInt, "Number of Periods", default = 5)
+        self.param("baseHeight", self.TypeDouble, "Base Height (um)", default = 20.0)
+        self.param("baseWidth", self.TypeDouble, "Base Width (um)", default = 30.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+        self.param("num_sides", self.TypeInt, "Number of Sides (circular styles)", default = 32)
+        self.param("diameter", self.TypeDouble, "Diameter (um)", default = 10.0)
+
+    def display_text_impl(self):
+        return f"FoldedSpring{self.style_str}(W={self.width:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.5
+        if self.length1 < 0: self.length1 = 0.0
+        if self.length2 < 0: self.length2 = 0.0
+        if self.pitch <= 0: self.pitch = 1.0
+        if self.num_periods < 1: self.num_periods = 1
+        if self.baseHeight <= 0: self.baseHeight = 1.0
+        if self.baseWidth <= 0: self.baseWidth = 1.0
+        if self.anchorDistance < 0: self.anchorDistance = 0.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_folded_spring(
+            self.layout, self.style_str, self.width, self.length1, self.length2, self.pitch,
+            self.amplitude, self.num_periods, self.baseHeight, self.baseWidth, self.anchorDistance,
+            self.num_sides, self.diameter
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+
+class FoldedSpring1APCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring1APCell, self).__init__("1A")
+class FoldedSpring1BPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring1BPCell, self).__init__("1B")
+class FoldedSpring2APCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2APCell, self).__init__("2A")
+class FoldedSpring2BPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2BPCell, self).__init__("2B")
+class FoldedSpring2CPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2CPCell, self).__init__("2C")
+class FoldedSpring2DPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2DPCell, self).__init__("2D")
+class FoldedSpring2EPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2EPCell, self).__init__("2E")
+class FoldedSpring2FPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2FPCell, self).__init__("2F")
+class FoldedSpring2GPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2GPCell, self).__init__("2G")
+class FoldedSpring2HPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2HPCell, self).__init__("2H")
+class FoldedSpring2IPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2IPCell, self).__init__("2I")
+class FoldedSpring2JPCell(FoldedSpringBasePCell):
+    def __init__(self): super(FoldedSpring2JPCell, self).__init__("2J")
+
+
+# 8. Flexures Subclasses
+class Flexure2APCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure2APCell, self).__init__("V2A")
+class Flexure2BPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure2BPCell, self).__init__("V2B")
+class Flexure2CPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure2CPCell, self).__init__("V2C")
+class Flexure2DPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure2DPCell, self).__init__("V2D")
+class Flexure2EPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure2EPCell, self).__init__("V2E")
+class Flexure4APCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure4APCell, self).__init__("V4A")
+class Flexure4BPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure4BPCell, self).__init__("V4B")
+class Flexure4CPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure4CPCell, self).__init__("V4C")
+class Flexure4DPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure4DPCell, self).__init__("V4D")
+class Flexure4EPCell(AnchoredFlexuresPCell):
+    def __init__(self): super(Flexure4EPCell, self).__init__("V4E")
+
+
+# 9. Cantilever Arrays Subclasses
+class CantileverArrayBasePCell(pya.PCellDeclarationHelper):
+    def __init__(self, style_str="Linear"):
+        super(CantileverArrayBasePCell, self).__init__()
+        self.style_str = style_str
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("width", self.TypeDouble, "Beam Width (um)", default = 5.0)
+        self.param("startL", self.TypeDouble, "Start Length (um)", default = 50.0)
+        self.param("endL", self.TypeDouble, "End Length (um)", default = 150.0)
+        self.param("pitch", self.TypeDouble, "Pitch (um)", default = 15.0)
+        self.param("numElements", self.TypeInt, "Number of Elements", default = 10)
+        self.param("baseHeight", self.TypeDouble, "Anchor Base Height (um)", default = 20.0)
+        self.param("baseExtent", self.TypeDouble, "Anchor Base Extent (um)", default = 15.0)
+        self.param("variance", self.TypeDouble, "Variance / Step", default = 10.0)
+
+    def display_text_impl(self):
+        return f"CantileverArray_{self.style_str}(N={self.numElements})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.5
+        if self.startL <= 0: self.startL = 1.0
+        if self.endL <= 0: self.endL = 1.0
+        if self.pitch <= 0: self.pitch = 1.0
+        if self.numElements < 1: self.numElements = 1
+        if self.baseHeight <= 0: self.baseHeight = 1.0
+        if self.baseExtent < 0: self.baseExtent = 0.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        r_struct = ex.draw_cantilever_array_generic(
+            self.layout, self.style_str, self.width, self.startL, self.endL, self.pitch,
+            self.numElements, self.baseHeight, self.baseExtent, self.variance
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+
+class CantileverLPCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverLPCell, self).__init__("Linear")
+class CantileverPPCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverPPCell, self).__init__("Percentage")
+class CantileverSinePCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverSinePCell, self).__init__("Sinusoid")
+class CantileverLSEPCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverLSEPCell, self).__init__("LinearSE")
+class CantileverNLSEPCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverNLSEPCell, self).__init__("NonLinearSE")
+class CantileverCustomPCell(CantileverArrayBasePCell):
+    def __init__(self): super(CantileverCustomPCell, self).__init__("Custom")
+
+
+# 10. Cantilever Singles Subclasses
+class CantileverSingleBasePCell(pya.PCellDeclarationHelper):
+    def __init__(self, style_str="SRect"):
+        super(CantileverSingleBasePCell, self).__init__()
+        self.style_str = style_str
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("width", self.TypeDouble, "Width (um)", default = 5.0)
+        self.param("length", self.TypeDouble, "Length (um)", default = 100.0)
+        self.param("widthTop", self.TypeDouble, "Top Width (um)", default = 3.0)
+        self.param("lengthTop", self.TypeDouble, "Top Length (um)", default = 20.0)
+        self.param("length2", self.TypeDouble, "Length 2 (um)", default = 20.0)
+        self.param("length3", self.TypeDouble, "Length 3 (um)", default = 20.0)
+        self.param("hollowW", self.TypeDouble, "Hollow Width/Inset (um)", default = 1.0)
+        self.param("triangleHeight", self.TypeDouble, "Triangle/Tip Height (um)", default = 5.0)
+        self.param("radius", self.TypeDouble, "Curvature Radius (um)", default = 10.0)
+        self.param("gap", self.TypeDouble, "Gap (um)", default = 2.0)
+        self.param("rX1", self.TypeDouble, "Fillet Radius X1 (um)", default = 5.0)
+        self.param("rY1", self.TypeDouble, "Fillet Radius Y1 (um)", default = 5.0)
+        self.param("rX2", self.TypeDouble, "Fillet Radius X2 (um)", default = 5.0)
+        self.param("rY2", self.TypeDouble, "Fillet Radius Y2 (um)", default = 5.0)
+        self.param("paddleW", self.TypeDouble, "Paddle Width (um)", default = 10.0)
+        self.param("paddleL", self.TypeDouble, "Paddle Length (um)", default = 30.0)
+        self.param("baseHeight", self.TypeDouble, "Base Pad Height (um)", default = 20.0)
+        self.param("baseExtent", self.TypeDouble, "Base Pad Extent (um)", default = 15.0)
+        self.param("anchorDistance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"Cantilever_{self.style_str}(W={self.width:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width <= 0: self.width = 0.5
+        if self.length <= 0: self.length = 1.0
+        if self.baseHeight <= 0: self.baseHeight = 1.0
+        if self.baseExtent < 0: self.baseExtent = 0.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_struct, r_anchor = ex.draw_cantilever_single_generic(
+            self.layout, self.style_str, self.width, self.length, self.widthTop, self.lengthTop,
+            self.length2, self.length3, self.hollowW, self.triangleHeight, self.radius, self.gap,
+            self.rX1, self.rY1, self.rX2, self.rY2, self.paddleW, self.paddleL, self.baseHeight,
+            self.baseExtent, self.anchorDistance
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+        self.cell.shapes(anchor_idx).insert(r_anchor)
+
+class CantileverSRPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSRPCell, self).__init__("SRect")
+class CantileverSTriPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSTriPCell, self).__init__("STriangle")
+class CantileverSTrapPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSTrapPCell, self).__init__("STrapezoid")
+class CantileverSPaddlePCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSPaddlePCell, self).__init__("SPaddle")
+class CantileverSCHPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSCHPCell, self).__init__("SCurvedHalf")
+class CantileverSCFPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverSCFPCell, self).__init__("SCurvedFull")
+class CantileverHRPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHRPCell, self).__init__("HRect")
+class CantileverHTriPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHTriPCell, self).__init__("HTriangle")
+class CantileverHTrapPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHTrapPCell, self).__init__("HTrapezoid")
+class CantileverHPaddlePCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHPaddlePCell, self).__init__("HPaddle")
+class CantileverHCHPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHCHPCell, self).__init__("HCurvedHalf")
+class CantileverHCFPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverHCFPCell, self).__init__("HCurvedFull")
+class CantileverPB2PCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverPB2PCell, self).__init__("PBase2")
+class CantileverPB3PCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverPB3PCell, self).__init__("PBase3")
+class CantileverURPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverURPCell, self).__init__("URect")
+class CantileverUCFPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverUCFPCell, self).__init__("UCurvedFull")
+class CantileverUCPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverUCPCell, self).__init__("UCurved")
+class CantileverUCCPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverUCCPCell, self).__init__("UCurvedCenter")
+class CantileverUCPPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverUCPPCell, self).__init__("UCurvedPaddle")
+class CantileverCEPCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverCEPCell, self).__init__("CE")
+class CantileverCEPaddlePCell(CantileverSingleBasePCell):
+    def __init__(self): super(CantileverCEPaddlePCell, self).__init__("CEPaddle")
+
+
+# 11. Gear T PCell
+class GearTPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(GearTPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("rad", self.TypeDouble, "Hub Radius (um)", default = 20.0)
+        self.param("width", self.TypeDouble, "Gear Tooth Base Width (um)", default = 4.0)
+        self.param("height", self.TypeDouble, "Gear Tooth Height (um)", default = 6.0)
+        self.param("numGears", self.TypeInt, "Number of Teeth", default = 20)
+        self.param("triangleL", self.TypeDouble, "Triangle Length (um)", default = 2.0)
+        self.param("numSides", self.TypeInt, "Number of Sides for circles", default = 64)
+
+    def display_text_impl(self):
+        return f"gearT(Rad={self.rad:.1f}, N={self.numGears})"
+
+    def coerce_parameters_impl(self):
+        if self.rad <= 0: self.rad = 1.0
+        if self.width <= 0: self.width = 0.5
+        if self.height <= 0: self.height = 0.5
+        if self.numGears < 3: self.numGears = 3
+        if self.numSides < 8: self.numSides = 8
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        region = ex.draw_gear_t(self.layout, self.rad, self.width, self.height, self.numGears, self.triangleL, self.numSides)
+        self.cell.shapes(layer_idx).insert(region)
+
+
+# 12. Doubly Clamped Torsional V2 Beam
+class dcBeamT2PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(dcBeamT2PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Structural Layer", default = pya.LayerInfo(1, 0))
+        self.param("anchor_layer", self.TypeLayer, "Anchor Layer", default = pya.LayerInfo(2, 0))
+        self.param("width1", self.TypeDouble, "Beam Width 1 (um)", default = 2.0)
+        self.param("width2", self.TypeDouble, "Beam Width 2 (um)", default = 2.0)
+        self.param("width3", self.TypeDouble, "Connector Width (um)", default = 4.0)
+        self.param("width4", self.TypeDouble, "Outer Frame Width (um)", default = 5.0)
+        self.param("length1", self.TypeDouble, "Beam Length 1 (um)", default = 50.0)
+        self.param("length2", self.TypeDouble, "Length 2 (um)", default = 20.0)
+        self.param("length3", self.TypeDouble, "Connector Length (um)", default = 30.0)
+        self.param("gap", self.TypeDouble, "Gap (um)", default = 5.0)
+        self.param("base_height", self.TypeDouble, "Base Height (um)", default = 20.0)
+        self.param("base_width", self.TypeDouble, "Base Width (um)", default = 30.0)
+        self.param("anchor_distance", self.TypeDouble, "Anchor Offset (um)", default = 2.0)
+
+    def display_text_impl(self):
+        return f"dcBeamT2(L1={self.length1:.1f})"
+
+    def coerce_parameters_impl(self):
+        if self.width1 <= 0: self.width1 = 0.5
+        if self.width2 <= 0: self.width2 = 0.5
+        if self.length1 <= 0: self.length1 = 1.0
+        if self.base_height <= 0: self.base_height = 1.0
+        if self.base_width <= 0: self.base_width = 1.0
+
+    def produce_impl(self):
+        layer_idx = self.layout.layer(self.layer)
+        anchor_idx = self.layout.layer(self.anchor_layer)
+        r_struct, r_anc = ex.draw_dc_beam_torsional2(
+            self.layout, self.width1, self.width2, self.width3, self.width4,
+            self.length1, self.length2, self.length3, self.gap, self.base_height, self.base_width, self.anchor_distance
+        )
+        self.cell.shapes(layer_idx).insert(r_struct)
+        self.cell.shapes(anchor_idx).insert(r_anc)
+
+
+# 13. Coupled Arrays Base PCell
+class CoupledArrayBasePCell(pya.PCellDeclarationHelper):
+    def __init__(self, style_str="Rect", is_electrode=False, force_const_w=False):
+        super(CoupledArrayBasePCell, self).__init__()
+        self.style_str = style_str
+        self.is_electrode = is_electrode
+        self.force_const_w = force_const_w
+        
+        self.param("layerFront", self.TypeLayer, "Front Layer", default = pya.LayerInfo(1, 0))
+        self.param("layerBack", self.TypeLayer, "Back Layer", default = pya.LayerInfo(2, 0))
+        self.param("layerMetal", self.TypeLayer, "Metal Layer", default = pya.LayerInfo(3, 0))
+        self.param("numElements", self.TypeInt, "Number of Elements", default = 5)
+        self.param("L1", self.TypeDouble, "Length 1 (um)", default = 50.0)
+        self.param("W1a", self.TypeDouble, "Width 1a (um)", default = 5.0)
+        self.param("W1b", self.TypeDouble, "Width 1b (um)", default = 5.0)
+        self.param("L2", self.TypeDouble, "Length 2 (um)", default = 50.0)
+        self.param("W2a", self.TypeDouble, "Width 2a (um)", default = 5.0)
+        self.param("W2b", self.TypeDouble, "Width 2b (um)", default = 5.0)
+        self.param("space", self.TypeDouble, "Space (um)", default = 5.0)
+        self.param("lowerSpace", self.TypeDouble, "Lower Space (um)", default = 5.0)
+        self.param("hOverlap", self.TypeDouble, "Overlap Height (um)", default = 5.0)
+        self.param("hElectrode", self.TypeDouble, "Electrode Height (um)", default = 10.0)
+        self.param("lengthSide", self.TypeDouble, "Side Length (um)", default = 20.0)
+        self.param("LB", self.TypeDouble, "LB (um)", default = 50.0)
+        self.param("HB", self.TypeDouble, "HB (um)", default = 20.0)
+        self.param("diameter", self.TypeDouble, "Dot Diameter (um)", default = 2.0)
+        self.param("numSides", self.TypeInt, "Num Sides", default = 32)
+
+    def display_text_impl(self):
+        return f"CoupledArray_{self.style_str}(N={self.numElements})"
+
+    def coerce_parameters_impl(self):
+        if self.numElements < 1: self.numElements = 1
+        if self.L1 <= 0: self.L1 = 1.0
+        if self.L2 <= 0: self.L2 = 1.0
+        if self.W1a <= 0: self.W1a = 0.1
+        if self.W2a <= 0: self.W2a = 0.1
+        if self.numSides < 8: self.numSides = 8
+        if self.force_const_w:
+            self.W1b = self.W1a
+            self.W2b = self.W2a
+
+    def produce_impl(self):
+        dbu = self.layout.dbu
+        lyrFront = self.layout.layer(self.layerFront)
+        lyrBack = self.layout.layer(self.layerBack)
+        lyrMetal = self.layout.layer(self.layerMetal)
+        
+        front, metal, back = ex.draw_coupled_array(
+            self.style_str, dbu, self.numElements, self.L1, self.W1a, self.W1b,
+            self.L2, self.W2a, self.W2b, self.space, self.lowerSpace, self.hOverlap,
+            self.hElectrode, self.lengthSide, self.LB, self.HB, self.diameter, self.numSides,
+            lyrFront, lyrBack, lyrMetal, self.is_electrode
+        )
+        self.cell.shapes(lyrFront).insert(front)
+        self.cell.shapes(lyrMetal).insert(metal)
+        self.cell.shapes(lyrBack).insert(back)
+
+class MARAPCell(CoupledArrayBasePCell):
+    def __init__(self): super(MARAPCell, self).__init__(style_str="Rect", force_const_w=True)
+class MATALWPCell(CoupledArrayBasePCell):
+    def __init__(self): super(MATALWPCell, self).__init__(style_str="TrapCONST")
+class MATAPCell(CoupledArrayBasePCell):
+    def __init__(self): super(MATAPCell, self).__init__(style_str="TrapVLW")
+class MAR2PCell(CoupledArrayBasePCell):
+    def __init__(self): super(MAR2PCell, self).__init__(style_str="RT2", force_const_w=True)
+class MAT2PCell(CoupledArrayBasePCell):
+    def __init__(self): super(MAT2PCell, self).__init__(style_str="RT2", force_const_w=False)
+class MAR3PCell(CoupledArrayBasePCell):
+    def __init__(self): super(MAR3PCell, self).__init__(style_str="RT3", force_const_w=True, is_electrode=False)
+class MAT3PCell(CoupledArrayBasePCell):
+    def __init__(self): super(MAT3PCell, self).__init__(style_str="RT3", force_const_w=False, is_electrode=False)
+class MARCPCell(CoupledArrayBasePCell):
+    def __init__(self): super(MARCPCell, self).__init__(style_str="RT3", force_const_w=True, is_electrode=True)
+

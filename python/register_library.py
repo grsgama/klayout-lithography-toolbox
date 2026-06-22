@@ -1,6 +1,7 @@
 import pya
 import math
 import cnst_extended_pcells as cep
+import cnst_extended as ex
 
 # =====================================================================
 # LITHOGRAPHY & NANOPHOTONICS CELLS
@@ -125,15 +126,28 @@ class BezierTaperPCell(pya.PCellDeclarationHelper):
         self.cell.shapes(layer_idx).insert(poly)
 
 # 4. Alignment Mark
+# 4. Alignment Mark
 class AlignmentMarkPCell(pya.PCellDeclarationHelper):
-    def __init__(self):
+    def __init__(self, default_style="Cross"):
         super(AlignmentMarkPCell, self).__init__()
-        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
-        self.param("style", self.TypeString, "Style (Cross, Box, Both)", default = "Cross")
+        self.default_style = default_style
+        self.param("layer", self.TypeLayer, "Layer (Layer 1)", default = pya.LayerInfo(1, 0))
+        self.param("layer2", self.TypeLayer, "Layer 2", default = pya.LayerInfo(2, 0))
+        self.param("layer3", self.TypeLayer, "Layer 3", default = pya.LayerInfo(3, 0))
+        self.param("style", self.TypeString, "Style", default = default_style, 
+                   choices = [["Cross", "Cross"], ["Box", "Box"], ["Both", "Both"], 
+                              ["alignFFFB1", "alignFFFB1"], ["alignFFFB2", "alignFFFB2"], 
+                              ["align3Level", "align3Level"], ["alignVern", "alignVern"], 
+                              ["alignVernLb1", "alignVernLb1"], ["alignVernLb2", "alignVernLb2"]])
         self.param("cross_w", self.TypeDouble, "Cross bar width (um)", default = 2.0)
         self.param("cross_l", self.TypeDouble, "Cross length (um)", default = 40.0)
         self.param("box_size", self.TypeDouble, "Box Outer size (um)", default = 50.0)
         self.param("box_w", self.TypeDouble, "Box frame thickness (um)", default = 4.0)
+        self.param("vern_reso", self.TypeDouble, "Vernier Resolution (um)", default = 0.1)
+        self.param("inv_l", self.TypeDouble, "Inverse Box Length (um)", default = 1000.0)
+        self.param("inv_w", self.TypeDouble, "Inverse Box Width (um)", default = 1000.0)
+        self.param("l1_inv", self.TypeBoolean, "Layer 1 Inverse", default = False)
+        self.param("l2_inv", self.TypeBoolean, "Layer 2 Inverse", default = False)
 
     def display_text_impl(self):
         return f"AlignMark({self.style})"
@@ -144,38 +158,265 @@ class AlignmentMarkPCell(pya.PCellDeclarationHelper):
         if self.box_size <= 0: self.box_size = 10.0
         if self.box_w <= 0: self.box_w = 1.0
         if self.box_w >= self.box_size/2.0: self.box_w = self.box_size/4.0
+        if self.vern_reso <= 0: self.vern_reso = 0.01
+        if self.inv_l <= 0: self.inv_l = 10.0
+        if self.inv_w <= 0: self.inv_w = 10.0
 
     def produce_impl(self):
-        layer_idx = self.layout.layer(self.layer)
         dbu = self.layout.dbu
-        region = pya.Region()
+        lyr1 = self.layout.layer(self.layer)
+        lyr2 = self.layout.layer(self.layer2)
+        lyr3 = self.layout.layer(self.layer3)
         
+        def create_cross(L, W):
+            r = pya.Region()
+            r.insert(pya.Box(int(-L/2.0/dbu), int(-W/2.0/dbu), int(L/2.0/dbu), int(W/2.0/dbu)))
+            r.insert(pya.Box(int(-W/2.0/dbu), int(-L/2.0/dbu), int(W/2.0/dbu), int(L/2.0/dbu)))
+            return r
+            
+        def create_cross_2(L1, W1, L2, W2):
+            r = pya.Region()
+            r.insert(pya.Box(int(-L1/2.0/dbu), int(-W1/2.0/dbu), int(L1/2.0/dbu), int(W1/2.0/dbu)))
+            r.insert(pya.Box(int(-W2/2.0/dbu), int(-L2/2.0/dbu), int(W2/2.0/dbu), int(L2/2.0/dbu)))
+            return r
+
+        def create_verniers(w, pitch, rotate_deg, tx, ty):
+            Llong = 40.0
+            Lmid = 30.0
+            Lshort = 20.0
+            r = pya.Region()
+            for i in range(-10, 11):
+                tmpL = Lmid if (i % 5 == 0) else Lshort
+                if i == 0:
+                    tmpL = Llong
+                x_start = i * (w + pitch)
+                x_end = x_start + w
+                r.insert(pya.Box(int(x_start/dbu), 0, int(x_end/dbu), int(tmpL/dbu)))
+            
+            r.transform(pya.Trans(int(-w/2.0/dbu), 0))
+            r.transform(pya.ICplxTrans(1.0, rotate_deg, False, int(tx/dbu), int(ty/dbu)))
+            return r
+
+        def create_inverse(L, W, reg):
+            outer = pya.Box(int(-L/2.0/dbu), int(-W/2.0/dbu), int(L/2.0/dbu), int(W/2.0/dbu))
+            return pya.Region(outer) - reg
+
         if self.style in ["Cross", "Both"]:
-            horiz_box = pya.Box(
-                int(-self.cross_l / 2.0 / dbu), int(-self.cross_w / 2.0 / dbu),
-                int(self.cross_l / 2.0 / dbu), int(self.cross_w / 2.0 / dbu)
-            )
-            vert_box = pya.Box(
-                int(-self.cross_w / 2.0 / dbu), int(-self.cross_l / 2.0 / dbu),
-                int(self.cross_w / 2.0 / dbu), int(self.cross_l / 2.0 / dbu)
-            )
-            region.insert(horiz_box)
-            region.insert(vert_box)
+            region = create_cross(self.cross_l, self.cross_w)
+            self.cell.shapes(lyr1).insert(region)
             
         if self.style in ["Box", "Both"]:
-            outer_box = pya.Box(
-                int(-self.box_size / 2.0 / dbu), int(-self.box_size / 2.0 / dbu),
-                int(self.box_size / 2.0 / dbu), int(self.box_size / 2.0 / dbu)
-            )
+            outer_box = pya.Box(int(-self.box_size/2.0/dbu), int(-self.box_size/2.0/dbu), int(self.box_size/2.0/dbu), int(self.box_size/2.0/dbu))
             inner_size = self.box_size - 2.0 * self.box_w
-            inner_box = pya.Box(
-                int(-inner_size / 2.0 / dbu), int(-inner_size / 2.0 / dbu),
-                int(inner_size / 2.0 / dbu), int(inner_size / 2.0 / dbu)
-            )
-            box_region = pya.Region(outer_box) - pya.Region(inner_box)
-            region.insert(box_region)
+            inner_box = pya.Box(int(-inner_size/2.0/dbu), int(-inner_size/2.0/dbu), int(inner_size/2.0/dbu), int(inner_size/2.0/dbu))
+            region = pya.Region(outer_box) - pya.Region(inner_box)
+            self.cell.shapes(lyr1).insert(region)
+
+        elif self.style == "alignFFFB1":
+            crossB = create_cross(60.0, 10.0)
+            for angle in [0, 90, 180, 270]:
+                rBH = pya.Region(pya.Box(int(2.5/dbu), int(2.5/dbu), int(20.0/dbu), int(20.0/dbu)))
+                rBH.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else (pya.Trans.R270 if angle==270 else pya.Trans.R0))))
+                crossB -= rBH
+            self.cell.shapes(lyr1).insert(crossB)
             
-        self.cell.shapes(layer_idx).insert(region)
+            crossF = create_cross(10.0, 5.0)
+            
+            boxFbig1 = pya.Region(pya.Box(int(-80.0/dbu), int(-80.0/dbu), int(80.0/dbu), int(80.0/dbu)))
+            boxFsmall1 = pya.Box(int(-75.0/dbu), int(-75.0/dbu), int(75.0/dbu), int(75.0/dbu))
+            boxFbig1 -= pya.Region(boxFsmall1)
+            
+            boxFbig2 = pya.Region(pya.Box(int(-70.0/dbu), int(-70.0/dbu), int(70.0/dbu), int(70.0/dbu)))
+            boxFsmall2 = pya.Box(int(-65.0/dbu), int(-65.0/dbu), int(65.0/dbu), int(65.0/dbu))
+            boxFbig2 -= pya.Region(boxFsmall2)
+            
+            self.cell.shapes(lyr2).insert(crossF)
+            self.cell.shapes(lyr2).insert(boxFbig1)
+            self.cell.shapes(lyr2).insert(boxFbig2)
+            
+        elif self.style == "alignFFFB2":
+            crossB = create_cross(60.0, 5.0)
+            for angle in [0, 90, 180, 270]:
+                rBH = pya.Region(pya.Box(int(20.0/dbu), int(-5.0/dbu), int(50.0/dbu), int(5.0/dbu)))
+                rBH.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else (pya.Trans.R270 if angle==270 else pya.Trans.R0))))
+                crossB.insert(rBH)
+            self.cell.shapes(lyr1).insert(crossB)
+            
+            crossF = create_cross(10.0, 5.0)
+            
+            boxFbig1 = pya.Region(pya.Box(int(-80.0/dbu), int(-80.0/dbu), int(80.0/dbu), int(80.0/dbu)))
+            boxFsmall1 = pya.Box(int(-70.0/dbu), int(-70.0/dbu), int(70.0/dbu), int(70.0/dbu))
+            boxFbig1 -= pya.Region(boxFsmall1)
+            
+            boxFbig2 = pya.Region(pya.Box(int(-60.0/dbu), int(-60.0/dbu), int(60.0/dbu), int(60.0/dbu)))
+            boxFsmall2 = pya.Box(int(-50.0/dbu), int(-50.0/dbu), int(50.0/dbu), int(50.0/dbu))
+            boxFbig2 -= pya.Region(boxFsmall2)
+            
+            crossBoxSmall = create_cross(60.0, 20.0)
+            boxFbig2 -= crossBoxSmall
+            
+            self.cell.shapes(lyr2).insert(crossF)
+            self.cell.shapes(lyr2).insert(boxFbig1)
+            self.cell.shapes(lyr2).insert(boxFbig2)
+            
+        elif self.style == "align3Level":
+            r1A = pya.Box(int(20.0/dbu), int(20.0/dbu), int(150.0/dbu), int(150.0/dbu))
+            r1B = pya.Box(int(15.0/dbu), int(15.0/dbu), int(100.0/dbu), int(100.0/dbu))
+            r1C = pya.Box(int(12.0/dbu), int(12.0/dbu), int(50.0/dbu), int(50.0/dbu))
+            g1 = pya.Region(r1A)
+            g1.insert(r1B)
+            g1.insert(r1C)
+            for angle in [90, 180, 270]:
+                temp = g1.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else pya.Trans.R270)))
+                g1.insert(temp)
+            self.cell.shapes(lyr1).insert(g1)
+            
+            r2A = pya.Box(int(-1000.0/dbu), int(-1000.0/dbu), int(1000.0/dbu), int(1000.0/dbu))
+            r2B = pya.Region(pya.Box(int(22.0/dbu), int(22.0/dbu), int(140.0/dbu), int(140.0/dbu)))
+            for angle in [90, 180, 270]:
+                temp = r2B.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else pya.Trans.R270)))
+                r2B.insert(temp)
+            cross2 = create_cross_2(300.0, 20.0, 200.0, 20.0)
+            g2 = pya.Region(r2A) - cross2 - r2B
+            self.cell.shapes(lyr2).insert(g2)
+            
+            g3 = create_cross_2(300.0, 20.0, 200.0, 20.0)
+            r3 = pya.Region(pya.Box(int(22.0/dbu), int(22.0/dbu), int(140.0/dbu), int(140.0/dbu)))
+            for angle in [90, 180, 270]:
+                temp = r3.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else pya.Trans.R270)))
+                r3.insert(temp)
+            g3.insert(r3)
+            self.cell.shapes(lyr3).insert(g3)
+            
+        elif self.style == "alignVern":
+            L1 = 70.0
+            W1 = 30.0
+            lineL1 = 600.0
+            lineW1 = 5.0
+            lineL2 = 700.0
+            lineW2 = 10.0
+            
+            g1 = create_cross(L1, W1)
+            gtmp = pya.Region(pya.Box(int(200.0/dbu), int(-lineW1/2.0/dbu), int((200.0+lineL1)/dbu), int(lineW1/2.0/dbu)))
+            for angle in [0, 90, 180, 270]:
+                temp = gtmp.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else (pya.Trans.R270 if angle==270 else pya.Trans.R0))))
+                g1.insert(temp)
+                
+            vern1L = create_verniers(4.0, 4.0, 90.0, -L1-85.0, 0.0)
+            vern1R = create_verniers(4.0, 4.0, -90.0, L1+85.0, 0.0)
+            vern1U = create_verniers(4.0, 4.0, 0.0, 0.0, L1+85.0)
+            g1.insert(vern1L).insert(vern1R).insert(vern1U)
+            
+            gtmp = pya.Region(pya.Box(int(20.0/dbu), int(20.0/dbu), int(70.0/dbu), int(70.0/dbu)))
+            g2 = pya.Region()
+            for angle in [0, 90, 180, 270]:
+                temp = gtmp.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else (pya.Trans.R270 if angle==270 else pya.Trans.R0))))
+                g2.insert(temp)
+                
+            gtmp2 = pya.Region(pya.Box(int(200.0/dbu), int(-lineW2/2.0/dbu), int((200.0+lineL2)/dbu), int(lineW2/2.0/dbu)))
+            for angle in [0, 90, 180, 270]:
+                temp = gtmp2.dup()
+                temp.transform(pya.Trans(pya.Trans.R90 if angle==90 else (pya.Trans.R180 if angle==180 else (pya.Trans.R270 if angle==270 else pya.Trans.R0))))
+                g2.insert(temp)
+                
+            vern2L = create_verniers(4.0, 4.0 + self.vern_reso, -90.0, -L1-80.0, 0.0)
+            vern2R = create_verniers(4.0, 4.0 + self.vern_reso, 90.0, L1+80.0, 0.0)
+            vern2U = create_verniers(4.0, 4.0 + self.vern_reso, 180.0, 0.0, L1+80.0)
+            g2.insert(vern2L).insert(vern2R).insert(vern2U)
+            
+            if self.l1_inv:
+                g1 = create_inverse(self.inv_l, self.inv_w, g1)
+            if self.l2_inv:
+                g2 = create_inverse(self.inv_l, self.inv_w, g2)
+                
+            self.cell.shapes(lyr1).insert(g1)
+            self.cell.shapes(lyr2).insert(g2)
+            
+        elif self.style == "alignVernLb1":
+            L1 = 100.0
+            W1 = 10.0
+            L2 = 102.0
+            W2 = 14.0
+            
+            crossL1 = create_cross(L2, W2)
+            boxL1 = pya.Region(pya.Box(int((-L1-15.0)/dbu), int((-L1-15.0)/dbu), int((L1+15.0)/dbu), int((L1+15.0)/dbu)))
+            boxL1 -= crossL1
+            
+            vern1L = create_verniers(4.0, 4.0, -90.0, -L1-85.0, 0.0)
+            vern1R = create_verniers(4.0, 4.0, 0.0, 0.0, -L1-90.0 + 5.0)
+            boxL1.insert(vern1L).insert(vern1R)
+            ex.draw_text(self.layout, self.cell, self.layer, f"{self.layer.layer}", L2/2.0, 140.0, 40.0)
+            
+            crossL2 = create_cross(L1, W1)
+            boxL2 = pya.Region(pya.Box(int(-1000.0/dbu), int(-1000.0/dbu), int(1000.0/dbu), int(1000.0/dbu)))
+            boxL2 -= crossL2
+            
+            vern2L = create_verniers(4.0, 4.0 + self.vern_reso, 90.0, -L1-85.0-5.0, 0.0)
+            vern2R = create_verniers(4.0, 4.0 + self.vern_reso, 180.0, 0.0, -L1-90.0)
+            boxL2 -= vern2L
+            boxL2 -= vern2R
+            ex.draw_text(self.layout, self.cell, self.layer2, f"{self.layer2.layer}", -L2/2.0, 140.0, 40.0)
+            
+            self.cell.shapes(lyr1).insert(boxL1)
+            self.cell.shapes(lyr2).insert(boxL2)
+            
+        elif self.style == "alignVernLb2":
+            L1 = 100.0
+            W1 = 10.0
+            L2 = 102.0
+            W2 = 14.0
+            
+            crossL1 = create_cross(L1, W1)
+            vern1L = create_verniers(4.0, 4.0, -90.0, -L1-85.0, 0.0)
+            vern1R = create_verniers(4.0, 4.0, 0.0, 0.0, -L1-90.0 + 5.0)
+            
+            g1 = crossL1.dup()
+            g1.insert(vern1L).insert(vern1R)
+            ex.draw_text(self.layout, self.cell, self.layer, f"{self.layer.layer}", L2/2.0, 140.0, 40.0)
+            
+            boxL2 = pya.Region(pya.Box(int((-L2-15.0)/dbu), int((-L2-15.0)/dbu), int((L2+15.0)/dbu), int((L2+15.0)/dbu)))
+            crossL2 = create_cross(L2, W2)
+            boxL2 -= crossL2
+            
+            vern2L = create_verniers(4.0, 4.0 + self.vern_reso, 90.0, -L1-85.0-5.0, 0.0)
+            vern2R = create_verniers(4.0, 4.0 + self.vern_reso, 180.0, 0.0, -L1-90.0)
+            boxL2.insert(vern2L).insert(vern2R)
+            ex.draw_text(self.layout, self.cell, self.layer2, f"{self.layer2.layer}", -L2/2.0, 140.0, 40.0)
+            
+            self.cell.shapes(lyr1).insert(g1)
+            self.cell.shapes(lyr2).insert(boxL2)
+
+
+# Subclassed Alignment Marks for exact native name support
+class AlignFFFB1PCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(AlignFFFB1PCell, self).__init__(default_style="alignFFFB1")
+
+class AlignFFFB2PCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(AlignFFFB2PCell, self).__init__(default_style="alignFFFB2")
+
+class Align3LevelPCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(Align3LevelPCell, self).__init__(default_style="align3Level")
+
+class AlignVernPCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(AlignVernPCell, self).__init__(default_style="alignVern")
+
+class AlignVernLb1PCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(AlignVernLb1PCell, self).__init__(default_style="alignVernLb1")
+
+class AlignVernLb2PCell(AlignmentMarkPCell):
+    def __init__(self):
+        super(AlignVernLb2PCell, self).__init__(default_style="alignVernLb2")
+
 
 # 5. Vernier Caliper
 class VernierCaliperPCell(pya.PCellDeclarationHelper):
@@ -1243,6 +1484,28 @@ class NISTLithoToolboxLibrary(pya.Library):
         self.layout().register_pcell("30_Grating_Coupler", cep.GratingCouplerPCell())
         self.layout().register_pcell("31_Grating_Coupler_With_Waveguide", cep.GratingCouplerWithWaveguidePCell())
         
+        # Exact native name mappings
+        self.layout().register_pcell("resoPattern", cep.ResoPatternPCell())
+        self.layout().register_pcell("resoPatternPi", cep.ResoPatternPiPCell())
+        self.layout().register_pcell("resoPatternLSA", cep.ResoPatternLSAPCell())
+        self.layout().register_pcell("spiralArch", cep.SpiralArchPCell())
+        self.layout().register_pcell("spiralFermat", cep.SpiralFermatPCell())
+        self.layout().register_pcell("spiralLog", cep.SpiralLogPCell())
+        self.layout().register_pcell("alignFFFB1", AlignFFFB1PCell())
+        self.layout().register_pcell("alignFFFB2", AlignFFFB2PCell())
+        self.layout().register_pcell("align3Level", Align3LevelPCell())
+        self.layout().register_pcell("alignVern", AlignVernPCell())
+        self.layout().register_pcell("alignVernLb1", AlignVernLb1PCell())
+        self.layout().register_pcell("alignVernLb2", AlignVernLb2PCell())
+        self.layout().register_pcell("Alignment Marks - Custom", cep.AlignmentMarksCustomPCell())
+        self.layout().register_pcell("alignMarksCustom", cep.AlignmentMarksCustomPCell())
+        self.layout().register_pcell("spiralDelayLineArch", cep.SpiralDelayLineArchPCell())
+        self.layout().register_pcell("spiralDelayLineFermat", cep.SpiralDelayLineFermatPCell())
+        self.layout().register_pcell("spiralDelayLineArchV2", cep.SpiralDelayLineArchV2PCell())
+        self.layout().register_pcell("spiralDelayLineArchInv", cep.SpiralDelayLineArchInvPCell())
+        self.layout().register_pcell("spiralDelayLineFermatInv", cep.SpiralDelayLineFermatInvPCell())
+        self.layout().register_pcell("spiralDelayLineArchV2Inv", cep.SpiralDelayLineArchV2InvPCell())
+        
         self.register("NIST_LithoToolbox")
 
 # 2. Register NIST_MEMS_NEMS
@@ -1271,6 +1534,101 @@ class NISTMEMSNEMSLibrary(pya.Library):
         self.layout().register_pcell("17_Guckel_Rings", cep.GuckelRingPCell())
         self.layout().register_pcell("18_Diamond_Ring", cep.DiamondRingPCell())
         self.layout().register_pcell("19_Suspended_Fluid_Cell", cep.SuspendedFluidCellPCell())
+        
+        # Native name mappings
+        self.layout().register_pcell("bentBeam", cep.BentBeamActuatorPCell())
+        self.layout().register_pcell("bentBeamArray", cep.BentBeamArrayPCell())
+        self.layout().register_pcell("biMorph", cep.BiMorphThermalActuatorPCell())
+        self.layout().register_pcell("combDriveV1", cep.CombDriveV1PCell())
+        self.layout().register_pcell("linearDriveV1", cep.LinearDriveV1PCell())
+        self.layout().register_pcell("linearDriveL1", cep.LinearDriveV1PCell())
+        self.layout().register_pcell("gearT", cep.GearTPCell())
+        self.layout().register_pcell("straightSpring", cep.StraightSpringPCell())
+        self.layout().register_pcell("straightSpringE", cep.StraightSpringEPCell())
+        self.layout().register_pcell("circularSpringE", cep.CircularSpringEPCell())
+        self.layout().register_pcell("combRadialV1", cep.CombRadialV1PCell())
+        self.layout().register_pcell("combRadialV2", cep.CombRadialV2PCell())
+        
+        # Folded Springs
+        self.layout().register_pcell("foldedSpring1A", cep.FoldedSpring1APCell())
+        self.layout().register_pcell("foldedSpring1B", cep.FoldedSpring1BPCell())
+        self.layout().register_pcell("foldedSpring2A", cep.FoldedSpring2APCell())
+        self.layout().register_pcell("foldedSpring2B", cep.FoldedSpring2BPCell())
+        self.layout().register_pcell("foldedSpring2C", cep.FoldedSpring2CPCell())
+        self.layout().register_pcell("foldedSpring2D", cep.FoldedSpring2DPCell())
+        self.layout().register_pcell("foldedSpring2E", cep.FoldedSpring2EPCell())
+        self.layout().register_pcell("foldedSpring2F", cep.FoldedSpring2FPCell())
+        self.layout().register_pcell("foldedSpring2G", cep.FoldedSpring2GPCell())
+        self.layout().register_pcell("foldedSpring2H", cep.FoldedSpring2HPCell())
+        self.layout().register_pcell("foldedSpring2I", cep.FoldedSpring2IPCell())
+        self.layout().register_pcell("foldedSpring2J", cep.FoldedSpring2JPCell())
+        
+        # Flexures
+        self.layout().register_pcell("flexure2A", cep.Flexure2APCell())
+        self.layout().register_pcell("flexure2B", cep.Flexure2BPCell())
+        self.layout().register_pcell("flexure2C", cep.Flexure2CPCell())
+        self.layout().register_pcell("flexure2D", cep.Flexure2DPCell())
+        self.layout().register_pcell("flexure2E", cep.Flexure2EPCell())
+        self.layout().register_pcell("flexure4B", cep.Flexure4BPCell())
+        self.layout().register_pcell("flexure4C", cep.Flexure4CPCell())
+        self.layout().register_pcell("flexure4D", cep.Flexure4DPCell())
+        self.layout().register_pcell("flexure4E", cep.Flexure4EPCell())
+        
+        # Cantilever Arrays
+        self.layout().register_pcell("cantileverL", cep.CantileverLPCell())
+        self.layout().register_pcell("cantileverP", cep.CantileverPPCell())
+        self.layout().register_pcell("cantileverSine", cep.CantileverSinePCell())
+        self.layout().register_pcell("cantileverLSE", cep.CantileverLSEPCell())
+        self.layout().register_pcell("cantileverNLSE", cep.CantileverNLSEPCell())
+        self.layout().register_pcell("cantileverCustom", cep.CantileverCustomPCell())
+        
+        # Cantilever Singles
+        self.layout().register_pcell("cantileverSR", cep.CantileverSRPCell())
+        self.layout().register_pcell("cantileverSTri", cep.CantileverSTriPCell())
+        self.layout().register_pcell("cantileverSTrap", cep.CantileverSTrapPCell())
+        self.layout().register_pcell("cantileverSPaddle", cep.CantileverSPaddlePCell())
+        self.layout().register_pcell("cantileverSCH", cep.CantileverSCHPCell())
+        self.layout().register_pcell("cantileverSCF", cep.CantileverSCFPCell())
+        self.layout().register_pcell("cantileverHR", cep.CantileverHRPCell())
+        self.layout().register_pcell("cantileverHTri", cep.CantileverHTriPCell())
+        self.layout().register_pcell("cantileverHTrap", cep.CantileverHTrapPCell())
+        self.layout().register_pcell("cantileverHPaddle", cep.CantileverHPaddlePCell())
+        self.layout().register_pcell("cantileverHCH", cep.CantileverHCHPCell())
+        self.layout().register_pcell("cantileverHCF", cep.CantileverHCFPCell())
+        self.layout().register_pcell("cantileverPB2", cep.CantileverPB2PCell())
+        self.layout().register_pcell("cantileverPB3", cep.CantileverPB3PCell())
+        self.layout().register_pcell("cantileverUR", cep.CantileverURPCell())
+        self.layout().register_pcell("cantileverUCF", cep.CantileverUCFPCell())
+        self.layout().register_pcell("cantileverUC", cep.CantileverUCPCell())
+        self.layout().register_pcell("cantileverUCC", cep.CantileverUCCPCell())
+        self.layout().register_pcell("cantileverUCP", cep.CantileverUCPPCell())
+        self.layout().register_pcell("cantileverCE", cep.CantileverCEPCell())
+        self.layout().register_pcell("cantileverCEPaddle", cep.CantileverCEPaddlePCell())
+        
+        # dcBeams
+        self.layout().register_pcell("dcBeamT2", cep.dcBeamT2PCell())
+        self.layout().register_pcell("dcBeamC", cep.dcBeamCPCell())
+        
+        # Coupled Arrays
+        self.layout().register_pcell("MARA", cep.MARAPCell())
+        self.layout().register_pcell("MARAs", cep.MARAPCell())
+        self.layout().register_pcell("MATALW", cep.MATALWPCell())
+        self.layout().register_pcell("MATALWs", cep.MATALWPCell())
+        self.layout().register_pcell("MATA", cep.MATAPCell())
+        self.layout().register_pcell("MATAs", cep.MATAPCell())
+        self.layout().register_pcell("MAR2", cep.MAR2PCell())
+        self.layout().register_pcell("MAR2s", cep.MAR2PCell())
+        self.layout().register_pcell("MAR3", cep.MAR3PCell())
+        self.layout().register_pcell("MAR3s", cep.MAR3PCell())
+        self.layout().register_pcell("MARC", cep.MARCPCell())
+        self.layout().register_pcell("MARCs", cep.MARCPCell())
+        self.layout().register_pcell("MAT2", cep.MAT2PCell())
+        self.layout().register_pcell("MAT2s", cep.MAT2PCell())
+        self.layout().register_pcell("MAT3", cep.MAT3PCell())
+        self.layout().register_pcell("MAT3s", cep.MAT3PCell())
+        
+        # Guckel Ring Array
+        self.layout().register_pcell("GuckelRingArray", cep.GuckelRingPCell())
         
         self.register("NIST_MEMS_NEMS")
 
