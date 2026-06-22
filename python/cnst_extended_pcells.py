@@ -3390,19 +3390,19 @@ class CantileverHCHPCell(CantileverSingleBasePCell):
 class CantileverHCFPCell(CantileverSingleBasePCell):
     def __init__(self): super(CantileverHCFPCell, self).__init__("HCurvedFull")
 class CantileverPB2PCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverPB2PCell, self).__init__("PBase2")
+    def __init__(self): super(CantileverPB2PCell, self).__init__("PB2")
 class CantileverPB3PCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverPB3PCell, self).__init__("PBase3")
+    def __init__(self): super(CantileverPB3PCell, self).__init__("PB3")
 class CantileverURPCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverURPCell, self).__init__("URect")
+    def __init__(self): super(CantileverURPCell, self).__init__("UR")
 class CantileverUCFPCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverUCFPCell, self).__init__("UCurvedFull")
+    def __init__(self): super(CantileverUCFPCell, self).__init__("UCF")
 class CantileverUCPCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverUCPCell, self).__init__("UCurved")
+    def __init__(self): super(CantileverUCPCell, self).__init__("UC")
 class CantileverUCCPCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverUCCPCell, self).__init__("UCurvedCenter")
+    def __init__(self): super(CantileverUCCPCell, self).__init__("UCC")
 class CantileverUCPPCell(CantileverSingleBasePCell):
-    def __init__(self): super(CantileverUCPPCell, self).__init__("UCurvedPaddle")
+    def __init__(self): super(CantileverUCPPCell, self).__init__("UCP")
 class CantileverCEPCell(CantileverSingleBasePCell):
     def __init__(self): super(CantileverCEPCell, self).__init__("CE")
 class CantileverCEPaddlePCell(CantileverSingleBasePCell):
