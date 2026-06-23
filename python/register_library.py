@@ -1503,6 +1503,20 @@ class NISTLithoToolboxLibrary(pya.Library):
         self.layout().register_pcell("spiralDelayLineFermatInv", cep.SpiralDelayLineFermatInvPCell())
         self.layout().register_pcell("spiralDelayLineArchV2Inv", cep.SpiralDelayLineArchV2InvPCell())
         
+        # Extended PCells (New LithoToolbox shapes)
+        self.layout().register_pcell("circleThree", cep.CircleThreePCell())
+        self.layout().register_pcell("circleWave", cep.CircleWavePCell())
+        self.layout().register_pcell("cross", cep.CrossPCell())
+        self.layout().register_pcell("rectSUshape", cep.RectSUshapePCell())
+        self.layout().register_pcell("rectTaper", cep.RectTaperPCell())
+        self.layout().register_pcell("torusW", cep.TorusWPCell())
+        self.layout().register_pcell("torusWaveIn", cep.TorusWaveInPCell())
+        self.layout().register_pcell("torusWaveOut", cep.TorusWaveOutPCell())
+        self.layout().register_pcell("directionalCoupler1", cep.DirectionalCoupler1PCell())
+        self.layout().register_pcell("directionalCoupler2", cep.DirectionalCoupler2PCell())
+        self.layout().register_pcell("directionalCoupler3", cep.DirectionalCoupler3PCell())
+        self.layout().register_pcell("directionalCoupler4", cep.DirectionalCoupler4PCell())
+        
         self.register("NIST_LithoToolbox")
 
 # 2. Register NIST_MEMS_NEMS
@@ -1622,6 +1636,15 @@ class NISTMEMSNEMSLibrary(pya.Library):
         
         # Guckel Ring Array
         self.layout().register_pcell("GuckelRingArray", cep.GuckelRingPCell())
+        
+        # Extended PCells (New MEMS/NEMS shapes)
+        self.layout().register_pcell("tJunction", cep.TJunctionPCell())
+        self.layout().register_pcell("hJunction", cep.HJunctionPCell())
+        self.layout().register_pcell("arrowJunction", cep.ArrowJunctionPCell())
+        self.layout().register_pcell("meanderSin", cep.MeanderSinPCell())
+        self.layout().register_pcell("meanderRamp", cep.MeanderRampPCell())
+        self.layout().register_pcell("meanderTri", cep.MeanderTriPCell())
+        self.layout().register_pcell("meanderSqr", cep.MeanderSqrPCell())
         
         self.register("NIST_MEMS_NEMS")
 

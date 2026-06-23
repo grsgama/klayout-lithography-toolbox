@@ -3551,3 +3551,388 @@ class MAT3PCell(CoupledArrayBasePCell):
 class MARCPCell(CoupledArrayBasePCell):
     def __init__(self): super(MARCPCell, self).__init__(style_str="RT3", force_const_w=True, is_electrode=True)
 
+
+# --- NEW PCELL DECLARATIONS ---
+
+class CircleThreePCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CircleThreePCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x1", self.TypeDouble, "x1 (um)", default = 0.0)
+        self.param("y1", self.TypeDouble, "y1 (um)", default = 0.0)
+        self.param("x2", self.TypeDouble, "x2 (um)", default = 10.0)
+        self.param("y2", self.TypeDouble, "y2 (um)", default = 0.0)
+        self.param("x3", self.TypeDouble, "x3 (um)", default = 5.0)
+        self.param("y3", self.TypeDouble, "y3 (um)", default = 8.66)
+        self.param("num_sides", self.TypeInt, "Number of sides", default = 64)
+        
+    def display_text_impl(self):
+        return "circleThree"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_circle_three(self.layout, self.x1, self.y1, self.x2, self.y2, self.x3, self.y3, self.num_sides)
+        self.cell.shapes(lyr).insert(poly)
+
+class CircleWavePCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CircleWavePCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("radius", self.TypeDouble, "Radius (um)", default = 10.0)
+        self.param("n", self.TypeInt, "Number of oscillations", default = 8)
+        self.param("amp", self.TypeDouble, "Wave Amplitude (um)", default = 1.0)
+        self.param("num_sides", self.TypeInt, "Number of sides", default = 128)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "circleWave"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_circle_wave(self.layout, self.radius, self.n, self.amp, self.num_sides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class CrossPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(CrossPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("width", self.TypeDouble, "Width W (um)", default = 2.0)
+        self.param("length", self.TypeDouble, "Length L (um)", default = 10.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "cross"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_cross(self.layout, self.width, self.length, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class RectSUshapePCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(RectSUshapePCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Start X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Start Y (um)", default = 0.0)
+        self.param("L1", self.TypeDouble, "Length L1 (um)", default = 10.0)
+        self.param("L2", self.TypeDouble, "Length L2 (um)", default = 20.0)
+        self.param("L3", self.TypeDouble, "Length L3 (um)", default = 15.0)
+        self.param("W", self.TypeDouble, "Width W (um)", default = 2.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "rectSUshape"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_rectangular_su_shape(self.layout, self.L1, self.L2, self.L3, self.W, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class RectTaperPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(RectTaperPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Start Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Start Center Y (um)", default = 0.0)
+        self.param("w1", self.TypeDouble, "Start Width w1 (um)", default = 2.0)
+        self.param("L1", self.TypeDouble, "Rectangle Length L1 (um)", default = 10.0)
+        self.param("w2", self.TypeDouble, "End Width w2 (um)", default = 0.5)
+        self.param("L2", self.TypeDouble, "Taper Length L2 (um)", default = 5.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "rectTaper"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_rectangular_taper(self.layout, self.w1, self.L1, self.w2, self.L2, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class TorusWPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(TorusWPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("r", self.TypeDouble, "Midpoint Radius r (um)", default = 10.0)
+        self.param("w", self.TypeDouble, "Width w (um)", default = 2.0)
+        self.param("angleStart", self.TypeDouble, "Start Angle (deg)", default = 0.0)
+        self.param("angleEnd", self.TypeDouble, "End Angle (deg)", default = 90.0)
+        self.param("numSides", self.TypeInt, "Number of sides", default = 64)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "torusW"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_torus_w(self.layout, self.r, self.w, self.angleStart, self.angleEnd, self.numSides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class TorusWaveInPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(TorusWaveInPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("rIn", self.TypeDouble, "Inner Radius (um)", default = 10.0)
+        self.param("rOut", self.TypeDouble, "Outer Radius (um)", default = 15.0)
+        self.param("n", self.TypeInt, "Number of waves", default = 8)
+        self.param("amp", self.TypeDouble, "Wave Amplitude (um)", default = 1.0)
+        self.param("numSides", self.TypeInt, "Number of sides", default = 128)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "torusWaveIn"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_torus_wave_in(self.layout, self.rIn, self.rOut, self.n, self.amp, self.numSides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class TorusWaveOutPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(TorusWaveOutPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("rIn", self.TypeDouble, "Inner Radius (um)", default = 10.0)
+        self.param("rOut", self.TypeDouble, "Outer Radius (um)", default = 15.0)
+        self.param("n", self.TypeInt, "Number of waves", default = 8)
+        self.param("amp", self.TypeDouble, "Wave Amplitude (um)", default = 1.0)
+        self.param("numSides", self.TypeInt, "Number of sides", default = 128)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "torusWaveOut"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        poly = ex.draw_torus_wave_out(self.layout, self.rIn, self.rOut, self.n, self.amp, self.numSides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(poly)
+
+class TJunctionPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(TJunctionPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Anchor X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Anchor Y (um)", default = 0.0)
+        self.param("w1", self.TypeDouble, "Stem Width w1 (um)", default = 2.0)
+        self.param("w2", self.TypeDouble, "Branch Width w2 (um)", default = 2.0)
+        self.param("L1", self.TypeDouble, "Stem Length L1 (um)", default = 10.0)
+        self.param("L2", self.TypeDouble, "Branch Length L2 (um)", default = 15.0)
+        self.param("rad", self.TypeDouble, "Port Radius rad (um)", default = 3.0)
+        self.param("numSides", self.TypeInt, "Port sides", default = 32)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "tJunction"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_t_junction(self.layout, self.w1, self.w2, self.L1, self.L2, self.rad, self.numSides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(reg)
+
+class HJunctionPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(HJunctionPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Anchor X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Anchor Y (um)", default = 0.0)
+        self.param("w1", self.TypeDouble, "Stems Width w1 (um)", default = 2.0)
+        self.param("w2", self.TypeDouble, "Branch Width w2 (um)", default = 2.0)
+        self.param("L1", self.TypeDouble, "Stems Length L1 (um)", default = 10.0)
+        self.param("L2", self.TypeDouble, "Branch Length L2 (um)", default = 15.0)
+        self.param("rad", self.TypeDouble, "Port Radius rad (um)", default = 3.0)
+        self.param("numSides", self.TypeInt, "Port sides", default = 32)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "hJunction"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_h_junction(self.layout, self.w1, self.w2, self.L1, self.L2, self.rad, self.numSides, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(reg)
+
+class ArrowJunctionPCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(ArrowJunctionPCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Anchor X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Anchor Y (um)", default = 0.0)
+        self.param("w1", self.TypeDouble, "Stem Width w1 (um)", default = 2.0)
+        self.param("w2", self.TypeDouble, "Branch Width w2 (um)", default = 2.0)
+        self.param("L1", self.TypeDouble, "Branches Length L1 (um)", default = 10.0)
+        self.param("L2", self.TypeDouble, "Stem Length L2 (um)", default = 15.0)
+        self.param("rad", self.TypeDouble, "Port Radius rad (um)", default = 3.0)
+        self.param("numSides", self.TypeInt, "Port sides", default = 32)
+        self.param("junctionAngle", self.TypeDouble, "Junction Angle (deg)", default = 45.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "arrowJunction"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_arrow_junction(self.layout, self.w1, self.w2, self.L1, self.L2, self.rad, self.numSides, self.junctionAngle, self.theta, self.x, self.y)
+        self.cell.shapes(lyr).insert(reg)
+
+class MeanderBasePCell(pya.PCellDeclarationHelper):
+    def __init__(self, style):
+        super(MeanderBasePCell, self).__init__()
+        self.style = style
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Left Reservoir Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Left Reservoir Center Y (um)", default = 0.0)
+        self.param("L1", self.TypeDouble, "Left Reservoir Length (um)", default = 10.0)
+        self.param("H1", self.TypeDouble, "Left Reservoir Height (um)", default = 10.0)
+        self.param("L2", self.TypeDouble, "Right Reservoir Length (um)", default = 10.0)
+        self.param("H2", self.TypeDouble, "Right Reservoir Height (um)", default = 10.0)
+        self.param("width", self.TypeDouble, "Channel Width (um)", default = 2.0)
+        self.param("amplitude", self.TypeDouble, "Wave Amplitude (um)", default = 5.0)
+        self.param("numPeriods", self.TypeInt, "Number of periods", default = 5)
+        if style == 0:
+            self.param("numCurveSegments", self.TypeInt, "Curve resolution", default = 100)
+        self.param("a", self.TypeDouble, "Start straight length (um)", default = 5.0)
+        self.param("b", self.TypeDouble, "Meandering length (um)", default = 40.0)
+        self.param("c", self.TypeDouble, "End straight length (um)", default = 5.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        styles = ["meanderSin", "meanderRamp", "meanderTri", "meanderSqr"]
+        return styles[self.style]
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        num_segments = self.numCurveSegments if hasattr(self, "numCurveSegments") else 32
+        reg = ex.draw_meander_channel(
+            self.layout, self.L1, self.H1, self.L2, self.H2, self.width, self.amplitude,
+            self.numPeriods, num_segments, self.a, self.b, self.c, self.theta, self.x, self.y, self.style
+        )
+        self.cell.shapes(lyr).insert(reg)
+
+class MeanderSinPCell(MeanderBasePCell):
+    def __init__(self): super(MeanderSinPCell, self).__init__(style=0)
+
+class MeanderRampPCell(MeanderBasePCell):
+    def __init__(self): super(MeanderRampPCell, self).__init__(style=1)
+
+class MeanderTriPCell(MeanderBasePCell):
+    def __init__(self): super(MeanderTriPCell, self).__init__(style=2)
+
+class MeanderSqrPCell(MeanderBasePCell):
+    def __init__(self): super(MeanderSqrPCell, self).__init__(style=3)
+
+class DirectionalCoupler1PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(DirectionalCoupler1PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Anchor X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Anchor Y (um)", default = 0.0)
+        self.param("L1", self.TypeDouble, "Coupling Length L1 (um)", default = 80.0)
+        self.param("w1", self.TypeDouble, "Top Width w1 (um)", default = 0.4)
+        self.param("we1", self.TypeDouble, "Top Cladding we1 (um)", default = 2.0)
+        self.param("L2", self.TypeDouble, "Bottom Straight L2 (um)", default = 8.0)
+        self.param("L3", self.TypeDouble, "End Vertical L3 (um)", default = 15.0)
+        self.param("w2", self.TypeDouble, "Bottom Width w2 (um)", default = 0.5)
+        self.param("we2", self.TypeDouble, "Bottom Cladding we2 (um)", default = 2.2)
+        self.param("g", self.TypeDouble, "Gap g (um)", default = 0.44)
+        self.param("r", self.TypeDouble, "Bend Radius r (um)", default = 8.0)
+        self.param("numSides", self.TypeInt, "Bend resolution", default = 44)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "directionalCoupler1"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_directional_coupler_1(
+            self.layout, self.L1, self.w1, self.we1, self.L2, self.L3, self.w2, self.we2,
+            self.g, self.r, self.numSides, self.theta, self.x, self.y
+        )
+        self.cell.shapes(lyr).insert(reg)
+
+class DirectionalCoupler2PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(DirectionalCoupler2PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Anchor X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Anchor Y (um)", default = 0.0)
+        self.param("L1", self.TypeDouble, "Coupling Length L1 (um)", default = 80.0)
+        self.param("w1", self.TypeDouble, "Top Width w1 (um)", default = 0.4)
+        self.param("we1", self.TypeDouble, "Top Cladding we1 (um)", default = 2.0)
+        self.param("L2", self.TypeDouble, "Bottom Straight L2 (um)", default = 8.0)
+        self.param("L3", self.TypeDouble, "End Vertical L3 (um)", default = 15.0)
+        self.param("w2", self.TypeDouble, "Bottom Width w2 (um)", default = 0.5)
+        self.param("we2", self.TypeDouble, "Bottom Cladding we2 (um)", default = 2.2)
+        self.param("g", self.TypeDouble, "Gap g (um)", default = 0.44)
+        self.param("r", self.TypeDouble, "Bend Radius r (um)", default = 8.0)
+        self.param("numSides", self.TypeInt, "Bend resolution", default = 44)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "directionalCoupler2"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_directional_coupler_2(
+            self.layout, self.L1, self.w1, self.we1, self.L2, self.L3, self.w2, self.we2,
+            self.g, self.r, self.numSides, self.theta, self.x, self.y
+        )
+        self.cell.shapes(lyr).insert(reg)
+
+class DirectionalCoupler3PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(DirectionalCoupler3PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("w", self.TypeDouble, "Core Width w (um)", default = 0.2)
+        self.param("wE", self.TypeDouble, "Cladding Width wE (um)", default = 0.44)
+        self.param("g", self.TypeDouble, "Gap g (um)", default = 0.2)
+        self.param("L1", self.TypeDouble, "Coupling Length L1 (um)", default = 7.0)
+        self.param("L2", self.TypeDouble, "End Vertical L2 (um)", default = 2.2)
+        self.param("r", self.TypeDouble, "Bend Radius r (um)", default = 3.4)
+        self.param("numSides", self.TypeInt, "Bend resolution", default = 44)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "directionalCoupler3"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_directional_coupler_3(
+            self.layout, self.w, self.wE, self.g, self.L1, self.L2, self.r, self.numSides, self.theta, self.x, self.y
+        )
+        self.cell.shapes(lyr).insert(reg)
+
+class DirectionalCoupler4PCell(pya.PCellDeclarationHelper):
+    def __init__(self):
+        super(DirectionalCoupler4PCell, self).__init__()
+        self.param("layer", self.TypeLayer, "Layer", default = pya.LayerInfo(1, 0))
+        self.param("x", self.TypeDouble, "Center X (um)", default = 0.0)
+        self.param("y", self.TypeDouble, "Center Y (um)", default = 0.0)
+        self.param("w", self.TypeDouble, "Core Width w (um)", default = 0.2)
+        self.param("wE", self.TypeDouble, "Cladding Width wE (um)", default = 0.44)
+        self.param("g", self.TypeDouble, "Gap g (um)", default = 0.2)
+        self.param("L1", self.TypeDouble, "Coupling Length L1 (um)", default = 20.0)
+        self.param("LB", self.TypeDouble, "SBend Length LB (um)", default = 14.0)
+        self.param("HB", self.TypeDouble, "SBend Height HB (um)", default = 10.0)
+        self.param("theta", self.TypeDouble, "Rotation Angle (deg)", default = 0.0)
+        
+    def display_text_impl(self):
+        return "directionalCoupler4"
+        
+    def produce_impl(self):
+        lyr = self.layout.layer(self.layer)
+        reg = ex.draw_directional_coupler_4(
+            self.layout, self.w, self.wE, self.g, self.L1, self.LB, self.HB, self.theta, self.x, self.y
+        )
+        self.cell.shapes(lyr).insert(reg)
+
+

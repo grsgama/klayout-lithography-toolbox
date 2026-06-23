@@ -382,7 +382,8 @@ def draw_beam_curved_ends(dbu, L, W, r, num_sides, centered):
     end_box = pya.Region(pya.Box(int((-r - W/2.0)/dbu), 0, int((r + W/2.0)/dbu), int(r/dbu)))
     circ1 = pya.Region(draw_ellipse(dbu, r + W/2.0, r, r, r, num_sides))
     circ2 = pya.Region(draw_ellipse(dbu, -r - W/2.0, r, r, r, num_sides))
-    end_box.subtract(circ1).subtract(circ2)
+    end_box -= circ1
+    end_box -= circ2
     
     # left end: end_box rotated -90 deg
     left_end = end_box.dup()
@@ -1994,6 +1995,558 @@ def draw_spiral_log(layout, width, turns, a, b, inc):
     region.insert(pya.Polygon(pts_dbu))
     region.merge()
     return region
+
+# --- NEW HELPERS FOR EXTENDED PCells ---
+
+def rotate_and_translate_dpoints(dpoints, theta, x_trans, y_trans):
+    rad = math.radians(theta)
+    cos_t = math.cos(rad)
+    sin_t = math.sin(rad)
+    res = []
+    for p in dpoints:
+        px = p.x if hasattr(p, "x") else p[0]
+        py = p.y if hasattr(p, "y") else p[1]
+        rx = px * cos_t - py * sin_t
+        ry = px * sin_t + py * cos_t
+        res.append(pya.DPoint(rx + x_trans, ry + y_trans))
+    return res
+
+def transform_dpoly(dpoly, theta, x_trans, y_trans, dbu):
+    pts = [p for p in dpoly.each_point_hull()]
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def make_transformed_box(dbu, cx, cy, w, h, theta, x_trans, y_trans):
+    x1, y1 = cx - w/2.0, cy - h/2.0
+    x2, y2 = cx + w/2.0, cy + h/2.0
+    pts = [pya.DPoint(x1, y1), pya.DPoint(x2, y1), pya.DPoint(x2, y2), pya.DPoint(x1, y2)]
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_circle_dpoly(cx, cy, r, num_sides):
+    pts = []
+    da = 2.0 * math.pi / num_sides
+    for i in range(num_sides):
+        a = i * da
+        pts.append(pya.DPoint(cx + r * math.cos(a), cy + r * math.sin(a)))
+    return pya.DPolygon(pts)
+
+def draw_circle_three(layout, x1, y1, x2, y2, x3, y3, num_sides):
+    dbu = layout.dbu
+    offset = x2**2 + y2**2
+    p1x_sq = x1**2 + y1**2
+    p3x_sq = x3**2 + y3**2
+    bc = (p1x_sq - offset) / 2.0
+    cd = (offset - p3x_sq) / 2.0
+    det = (x1 - x2) * (y2 - y3) - (x2 - x3) * (y1 - y2)
+    if abs(det) < 1e-7:
+        pts = [pya.Point(int(x1/dbu), int(y1/dbu)), pya.Point(int(x3/dbu), int(y3/dbu))]
+        return pya.Path(pts, 1).simple_polygon()
+    centerx = (bc * (y2 - y3) - cd * (y1 - y2)) / det
+    centery = (cd * (x1 - x2) - bc * (x2 - x3)) / det
+    radius = math.sqrt((x2 - centerx)**2 + (y2 - centery)**2)
+    
+    pts = []
+    da = 2.0 * math.pi / num_sides
+    for i in range(num_sides):
+        a = i * da
+        pts.append(pya.Point(int(round((centerx + radius * math.cos(a))/dbu)), int(round((centery + radius * math.sin(a))/dbu))))
+    return pya.Polygon(pts)
+
+def draw_circle_wave(layout, radius, n, amp_sin, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    pts = []
+    da = 2.0 * math.pi / num_sides
+    for i in range(num_sides):
+        a = i * da
+        r_pert = radius + amp_sin * math.sin(a * n)
+        pts.append(pya.DPoint(r_pert * math.cos(a), r_pert * math.sin(a)))
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_cross(layout, width, length, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    hW = width / 2.0
+    hL = length
+    pts = [
+        pya.DPoint(-hW, -hW),
+        pya.DPoint(-hW, -hL),
+        pya.DPoint(hW, -hL),
+        pya.DPoint(hW, -hW),
+        pya.DPoint(hL, -hW),
+        pya.DPoint(hL, hW),
+        pya.DPoint(hW, hW),
+        pya.DPoint(hW, hL),
+        pya.DPoint(-hW, hL),
+        pya.DPoint(-hW, hW),
+        pya.DPoint(-hL, hW),
+        pya.DPoint(-hL, -hW)
+    ]
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_rectangular_su_shape(layout, L1, L2, L3, W, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    dpoints = [
+        pya.DPoint(0.0, 0.0),
+        pya.DPoint(0.0, L1),
+        pya.DPoint(L2, L1),
+        pya.DPoint(L2, L1 + L3)
+    ]
+    pts_trans = rotate_and_translate_dpoints(dpoints, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    path = pya.Path(pts_itype, int(round(W/dbu)))
+    return path.simple_polygon()
+
+def draw_rectangular_taper(layout, w1, L1, w2, L2, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    pts = [
+        pya.DPoint(0.0, -w1/2.0),
+        pya.DPoint(L1, -w1/2.0),
+        pya.DPoint(L1 + L2, -w2/2.0),
+        pya.DPoint(L1 + L2, w2/2.0),
+        pya.DPoint(L1, w1/2.0),
+        pya.DPoint(0.0, w1/2.0)
+    ]
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_torus_w(layout, r, w, angle_start, angle_stop, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    rin = r - w / 2.0
+    rout = r + w / 2.0
+    angle_diff = angle_stop - angle_start
+    if angle_diff < 0:
+        angle_diff += 360.0
+    da = angle_diff / num_sides
+    pts = []
+    for i in range(num_sides + 1):
+        a = math.radians(angle_start + i * da)
+        pts.append(pya.DPoint(rin * math.cos(a), rin * math.sin(a)))
+    for i in range(num_sides, -1, -1):
+        a = math.radians(angle_start + i * da)
+        pts.append(pya.DPoint(rout * math.cos(a), rout * math.sin(a)))
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_torus_wave_in(layout, rad_in, rad_out, n, amp, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    pts = []
+    c = 2.0 * math.pi / num_sides
+    for i in range(num_sides + 1):
+        angle = i * c
+        r = rad_in + amp * math.sin(angle * n)
+        pts.append(pya.DPoint(r * math.cos(angle), r * math.sin(angle)))
+    for i in range(num_sides, -1, -1):
+        angle = i * c
+        r = rad_out + amp * math.sin(angle * n)
+        pts.append(pya.DPoint(r * math.cos(angle), r * math.sin(angle)))
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_torus_wave_out(layout, rad_in, rad_out, n, amp, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    pts = []
+    c = 2.0 * math.pi / num_sides
+    for i in range(num_sides + 1):
+        angle = i * c
+        r = rad_in + amp * math.sin(angle * n)
+        pts.append(pya.DPoint(r * math.cos(angle), r * math.sin(angle)))
+    for i in range(num_sides, -1, -1):
+        angle = i * c
+        r = rad_out + amp * math.cos(angle * n)
+        pts.append(pya.DPoint(r * math.cos(angle), r * math.sin(angle)))
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    return pya.Polygon(pts_itype)
+
+def draw_t_junction(layout, w1, w2, L1, L2, rad, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    y_top = 2.0 * rad + L1
+    
+    poly_vert = pya.DPolygon(pya.DBox(-w1/2.0, 0.0, w1/2.0, y_top))
+    poly_horiz = pya.DPolygon(pya.DBox(w1/2.0, rad + L1/2.0 - w2/2.0, w1/2.0 + L2 + rad, rad + L1/2.0 + w2/2.0))
+    
+    dpolys = [poly_vert, poly_horiz]
+    if rad > 0.0:
+        dpolys.append(draw_circle_dpoly(0.0, 0.0, rad, num_sides))
+        dpolys.append(draw_circle_dpoly(0.0, y_top, rad, num_sides))
+        dpolys.append(draw_circle_dpoly(w1/2.0 + L2 + rad, rad + L1/2.0, rad, num_sides))
+        
+    region = pya.Region()
+    for dp in dpolys:
+        region.insert(transform_dpoly(dp, theta, x_trans, y_trans, dbu))
+    region.merge()
+    return region
+
+def draw_h_junction(layout, w1, w2, L1, L2, rad, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    y_top = 2.0 * rad + L1
+    
+    poly_vert1 = pya.DPolygon(pya.DBox(-w1/2.0, 0.0, w1/2.0, y_top))
+    poly_vert2 = pya.DPolygon(pya.DBox(w1/2.0 + L2, 0.0, 3.0*w1/2.0 + L2, y_top))
+    poly_horiz = pya.DPolygon(pya.DBox(w1/2.0, rad + L1/2.0 - w2/2.0, w1/2.0 + L2, rad + L1/2.0 + w2/2.0))
+    
+    dpolys = [poly_vert1, poly_vert2, poly_horiz]
+    if rad > 0.0:
+        dpolys.append(draw_circle_dpoly(0.0, 0.0, rad, num_sides))
+        dpolys.append(draw_circle_dpoly(0.0, y_top, rad, num_sides))
+        dpolys.append(draw_circle_dpoly(w1 + L2, 0.0, rad, num_sides))
+        dpolys.append(draw_circle_dpoly(w1 + L2, y_top, rad, num_sides))
+        
+    region = pya.Region()
+    for dp in dpolys:
+        region.insert(transform_dpoly(dp, theta, x_trans, y_trans, dbu))
+    region.merge()
+    return region
+
+def draw_arrow_junction(layout, w1, w2, L1, L2, rad, num_sides, junction_angle, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    rad_ja = math.radians(junction_angle)
+    x = (rad + L1) * math.cos(rad_ja)
+    y = (rad + L1) * math.sin(rad_ja)
+    
+    branch_pts = [pya.DPoint(0.0, 0.0), pya.DPoint(-x, y), pya.DPoint(0.0, 2.0 * y)]
+    branch_trans = rotate_and_translate_dpoints(branch_pts, theta, x_trans, y_trans)
+    branch_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in branch_trans]
+    branch_path = pya.Path(branch_itype, int(round(w1/dbu)))
+    
+    stem_pts = [pya.DPoint(-x, y), pya.DPoint(-x + rad + L2, y)]
+    stem_trans = rotate_and_translate_dpoints(stem_pts, theta, x_trans, y_trans)
+    stem_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in stem_trans]
+    stem_path = pya.Path(stem_itype, int(round(w2/dbu)))
+    
+    region = pya.Region()
+    region.insert(branch_path.simple_polygon())
+    region.insert(stem_path.simple_polygon())
+    
+    if rad > 0.0:
+        c1 = draw_circle_dpoly(0.0, 0.0, rad, num_sides)
+        c2 = draw_circle_dpoly(0.0, 2.0 * y, rad, num_sides)
+        c3 = draw_circle_dpoly(-x + rad + L2, y, rad, num_sides)
+        region.insert(transform_dpoly(c1, theta, x_trans, y_trans, dbu))
+        region.insert(transform_dpoly(c2, theta, x_trans, y_trans, dbu))
+        region.insert(transform_dpoly(c3, theta, x_trans, y_trans, dbu))
+        
+    region.merge()
+    return region
+
+def draw_meander_channel(layout, L1, H1, L2, H2, width, amplitude, num_periods, num_curve_segments, a, b, c, theta, x_trans, y_trans, style):
+    dbu = layout.dbu
+    startX = L1 / 2.0
+    pts = [pya.DPoint(startX, 0.0), pya.DPoint(startX + a, 0.0)]
+    
+    x_meander_start = startX + a
+    if style == 0:
+        n = num_periods / b
+        da = b / num_curve_segments
+        for i in range(num_curve_segments + 1):
+            dx = i * da
+            dy = amplitude * math.sin(2.0 * math.pi * n * dx)
+            pts.append(pya.DPoint(x_meander_start + dx, dy))
+    elif style == 1:
+        delta = b / (num_periods * 2)
+        curr_x = delta
+        while curr_x <= b:
+            pts.append(pya.DPoint(curr_x + x_meander_start, amplitude))
+            pts.append(pya.DPoint(curr_x + x_meander_start, -amplitude))
+            curr_x += delta
+            pts.append(pya.DPoint(curr_x + x_meander_start, 0.0))
+            curr_x += delta
+    elif style == 2:
+        delta = b / (num_periods * 3)
+        curr_x = delta
+        while curr_x <= b:
+            pts.append(pya.DPoint(curr_x + x_meander_start, amplitude))
+            pts.append(pya.DPoint(curr_x + delta + x_meander_start, -amplitude))
+            pts.append(pya.DPoint(curr_x + 2.0 * delta + x_meander_start, 0.0))
+            curr_x += 3.0 * delta
+    elif style == 3:
+        delta = b / (num_periods * 2)
+        curr_x = 0.0
+        while curr_x < b:
+            pts.append(pya.DPoint(curr_x + x_meander_start, amplitude))
+            pts.append(pya.DPoint(curr_x + delta + x_meander_start, amplitude))
+            pts.append(pya.DPoint(curr_x + delta + x_meander_start, -amplitude))
+            pts.append(pya.DPoint(curr_x + 2.0 * delta + x_meander_start, -amplitude))
+            pts.append(pya.DPoint(curr_x + 2.0 * delta + x_meander_start, 0.0))
+            curr_x += 2.0 * delta
+            
+    pts.append(pya.DPoint(startX + a + b + c, 0.0))
+    pts = clean_duplicate_points(pts)
+    
+    pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+    channel_path = pya.Path(pts_itype, int(round(width/dbu)))
+    
+    region = pya.Region()
+    region.insert(channel_path.simple_polygon())
+    
+    if L1 > 0.0 and H1 > 0.0:
+        region.insert(make_transformed_box(dbu, 0.0, 0.0, L1, H1, theta, x_trans, y_trans))
+        
+    if L2 > 0.0 and H2 > 0.0:
+        cx_r2 = startX + a + b + c + L2 / 2.0
+        region.insert(make_transformed_box(dbu, cx_r2, 0.0, L2, H2, theta, x_trans, y_trans))
+        
+    region.merge()
+    return region
+
+def clean_duplicate_points(pts):
+    cleaned = []
+    for p in pts:
+        if not cleaned or (abs(p.x - cleaned[-1].x) > 1e-9 or abs(p.y - cleaned[-1].y) > 1e-9):
+            cleaned.append(p)
+    return cleaned
+
+def draw_directional_coupler_1(layout, L1, w1, we1, L2, L3, w2, we2, g, r, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    y_mid = -w1/2.0 - g - w2/2.0
+    
+    top_clad = pya.DPolygon(pya.DBox(-L1/2.0, -(w1/2.0 + we1), L1/2.0, w1/2.0 + we1))
+    bot_clad_rect = pya.DPolygon(pya.DBox(-L2/2.0, y_mid - (w2/2.0 + we2), L2/2.0, y_mid + w2/2.0 + we2))
+    torus_clad_r = draw_torus_w_dpoly(L2/2.0, y_mid - r, r, w2 + 2.0*we2, 0.0, 90.0, num_sides)
+    torus_clad_l = mirror_dpoly_x(torus_clad_r)
+    
+    x_end_l = L2/2.0 + r - w2/2.0 - we2
+    x_end_r = L2/2.0 + r + w2/2.0 + we2
+    end_rect_r = pya.DPolygon(pya.DBox(x_end_l, y_mid - r - L3, x_end_r, y_mid - r))
+    end_rect_l = mirror_dpoly_x(end_rect_r)
+    
+    clad_reg = pya.Region()
+    clad_reg.insert(pya.Polygon.from_dpoly(top_clad * (1.0/dbu)))
+    clad_reg.insert(pya.Polygon.from_dpoly(bot_clad_rect * (1.0/dbu)))
+    clad_reg.insert(pya.Polygon.from_dpoly(torus_clad_r * (1.0/dbu)))
+    clad_reg.insert(pya.Polygon.from_dpoly(torus_clad_l * (1.0/dbu)))
+    clad_reg.insert(pya.Polygon.from_dpoly(end_rect_r * (1.0/dbu)))
+    clad_reg.insert(pya.Polygon.from_dpoly(end_rect_l * (1.0/dbu)))
+    clad_reg.merge()
+    
+    top_core = pya.DPolygon(pya.DBox(-L1/2.0, -w1/2.0, L1/2.0, w1/2.0))
+    bot_core_rect = pya.DPolygon(pya.DBox(-L2/2.0, y_mid - w2/2.0, L2/2.0, y_mid + w2/2.0))
+    torus_core_r = draw_torus_w_dpoly(L2/2.0, y_mid - r, r, w2, 0.0, 91.0, num_sides)
+    torus_core_l = mirror_dpoly_x(torus_core_r)
+    
+    x_c_l = L2/2.0 + r - w2/2.0
+    x_c_r = L2/2.0 + r + w2/2.0
+    end_core_r = pya.DPolygon(pya.DBox(x_c_l, y_mid - r - L3, x_c_r, y_mid - r))
+    end_core_l = mirror_dpoly_x(end_core_r)
+    
+    core_reg = pya.Region()
+    core_reg.insert(pya.Polygon.from_dpoly(top_core * (1.0/dbu)))
+    core_reg.insert(pya.Polygon.from_dpoly(bot_core_rect * (1.0/dbu)))
+    core_reg.insert(pya.Polygon.from_dpoly(torus_core_r * (1.0/dbu)))
+    core_reg.insert(pya.Polygon.from_dpoly(torus_core_l * (1.0/dbu)))
+    core_reg.insert(pya.Polygon.from_dpoly(end_core_r * (1.0/dbu)))
+    core_reg.insert(pya.Polygon.from_dpoly(end_core_l * (1.0/dbu)))
+    core_reg.merge()
+    
+    clad_reg -= core_reg
+    
+    final_region = pya.Region()
+    for poly in clad_reg.each():
+        pts = [pya.DPoint(p.x * dbu, p.y * dbu) for p in poly.each_point_hull()]
+        pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+        pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+        final_region.insert(pya.Polygon(pts_itype))
+        
+    final_region.merge()
+    return final_region
+
+def draw_directional_coupler_2(layout, L1, w1, we1, L2, L3, w2, we2, g, r, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    y_mid = -w1/2.0 - g - w2/2.0
+    
+    bot_clad_rect = pya.DPolygon(pya.DBox(-L2/2.0, y_mid - (w2/2.0 + we2), L2/2.0, y_mid + w2/2.0 + we2))
+    torus_clad_r = draw_torus_w_dpoly(L2/2.0, y_mid - r, r, w2 + 2.0*we2, 0.0, 90.0, num_sides)
+    torus_clad_l = mirror_dpoly_x(torus_clad_r)
+    x_end_l = L2/2.0 + r - w2/2.0 - we2
+    x_end_r = L2/2.0 + r + w2/2.0 + we2
+    end_rect_r = pya.DPolygon(pya.DBox(x_end_l, y_mid - r - L3, x_end_r, y_mid - r))
+    end_rect_l = mirror_dpoly_x(end_rect_r)
+    
+    lower_clad = pya.Region()
+    lower_clad.insert(pya.Polygon.from_dpoly(bot_clad_rect * (1.0/dbu)))
+    lower_clad.insert(pya.Polygon.from_dpoly(torus_clad_r * (1.0/dbu)))
+    lower_clad.insert(pya.Polygon.from_dpoly(torus_clad_l * (1.0/dbu)))
+    lower_clad.insert(pya.Polygon.from_dpoly(end_rect_r * (1.0/dbu)))
+    lower_clad.insert(pya.Polygon.from_dpoly(end_rect_l * (1.0/dbu)))
+    lower_clad.merge()
+    
+    bot_core_rect = pya.DPolygon(pya.DBox(-L2/2.0, y_mid - w2/2.0, L2/2.0, y_mid + w2/2.0))
+    torus_core_r = draw_torus_w_dpoly(L2/2.0, y_mid - r, r, w2, 0.0, 91.0, num_sides)
+    torus_core_l = mirror_dpoly_x(torus_core_r)
+    x_c_l = L2/2.0 + r - w2/2.0
+    x_c_r = L2/2.0 + r + w2/2.0
+    end_core_r = pya.DPolygon(pya.DBox(x_c_l, y_mid - r - L3, x_c_r, y_mid - r))
+    end_core_l = mirror_dpoly_x(end_core_r)
+    
+    lower_core = pya.Region()
+    lower_core.insert(pya.Polygon.from_dpoly(bot_core_rect * (1.0/dbu)))
+    lower_core.insert(pya.Polygon.from_dpoly(torus_core_r * (1.0/dbu)))
+    lower_core.insert(pya.Polygon.from_dpoly(torus_core_l * (1.0/dbu)))
+    lower_core.insert(pya.Polygon.from_dpoly(end_core_r * (1.0/dbu)))
+    lower_core.insert(pya.Polygon.from_dpoly(end_core_l * (1.0/dbu)))
+    lower_core.merge()
+    
+    upper_clad = lower_clad.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    upper_core = lower_core.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    
+    clad_reg = pya.Region()
+    clad_reg.insert(pya.Polygon.from_dpoly(pya.DPolygon(pya.DBox(-L1/2.0, -(w1/2.0 + we1), L1/2.0, w1/2.0 + we1)) * (1.0/dbu)))
+    clad_reg.insert(lower_clad)
+    clad_reg.insert(upper_clad)
+    clad_reg.merge()
+    
+    core_reg = pya.Region()
+    core_reg.insert(pya.Polygon.from_dpoly(pya.DPolygon(pya.DBox(-L1/2.0, -w1/2.0, L1/2.0, w1/2.0)) * (1.0/dbu)))
+    core_reg.insert(lower_core)
+    core_reg.insert(upper_core)
+    core_reg.merge()
+    
+    clad_reg -= core_reg
+    
+    final_region = pya.Region()
+    for poly in clad_reg.each():
+        pts = [pya.DPoint(p.x * dbu, p.y * dbu) for p in poly.each_point_hull()]
+        pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+        pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+        final_region.insert(pya.Polygon(pts_itype))
+        
+    final_region.merge()
+    return final_region
+
+def draw_torus_w_dpoly(cx, cy, r, w, angle_start, angle_stop, num_sides):
+    rin = r - w / 2.0
+    rout = r + w / 2.0
+    angle_diff = angle_stop - angle_start
+    if angle_diff < 0:
+        angle_diff += 360.0
+    da = angle_diff / num_sides
+    pts = []
+    for i in range(num_sides + 1):
+        a = math.radians(angle_start + i * da)
+        pts.append(pya.DPoint(cx + rin * math.cos(a), cy + rin * math.sin(a)))
+    for i in range(num_sides, -1, -1):
+        a = math.radians(angle_start + i * da)
+        pts.append(pya.DPoint(cx + rout * math.cos(a), cy + rout * math.sin(a)))
+    return pya.DPolygon(pts)
+
+def mirror_dpoly_x(dpoly):
+    pts = [pya.DPoint(-p.x, p.y) for p in dpoly.each_point_hull()]
+    return pya.DPolygon(pts)
+
+def draw_directional_coupler_ushape(dbu, w, g, L1, L2, r, num_sides):
+    uShape = pya.Region()
+    uShape.insert(pya.Polygon.from_dpoly(pya.DPolygon(pya.DBox(0.0, -w/2.0, L1/2.0, w/2.0)) * (1.0/dbu)))
+    
+    torus = draw_torus_w_dpoly(L1/2.0, -r, r, w, 0.0, 90.0, num_sides)
+    uShape.insert(pya.Polygon.from_dpoly(torus * (1.0/dbu)))
+    
+    uShape.insert(pya.Polygon.from_dpoly(pya.DPolygon(pya.DBox(L1/2.0 + r - w/2.0, -r - L2, L1/2.0 + r + w/2.0, -r)) * (1.0/dbu)))
+    uShape.merge()
+    
+    mirrored = uShape.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+    uShape.insert(mirrored)
+    uShape.merge()
+    return uShape
+
+def draw_directional_coupler_3(layout, w, wE, g, L1, L2, r, num_sides, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    clad_local = draw_directional_coupler_ushape(dbu, w + 2.0*wE, g, L1, L2, r, num_sides)
+    top_clad = clad_local.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    top_clad.transform(pya.Trans(0, int(round((g + w)/dbu))))
+    
+    clad_reg = pya.Region()
+    clad_reg.insert(clad_local)
+    clad_reg.insert(top_clad)
+    clad_reg.merge()
+    
+    core_local = draw_directional_coupler_ushape(dbu, w, g, L1, L2, r, num_sides)
+    top_core = core_local.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    top_core.transform(pya.Trans(0, int(round((g + w)/dbu))))
+    
+    core_reg = pya.Region()
+    core_reg.insert(core_local)
+    core_reg.insert(top_core)
+    core_reg.merge()
+    
+    clad_reg -= core_reg
+    clad_reg.transform(pya.Trans(0, int(round((-w/2.0 - g/2.0)/dbu))))
+    
+    final_region = pya.Region()
+    for poly in clad_reg.each():
+        pts = [pya.DPoint(p.x * dbu, p.y * dbu) for p in poly.each_point_hull()]
+        pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+        pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+        final_region.insert(pya.Polygon(pts_itype))
+        
+    final_region.merge()
+    return final_region
+
+def draw_directional_coupler_sbend(dbu, w, g, L1, LB, HB, shape_reso):
+    sShape = pya.Region()
+    sShape.insert(pya.Polygon.from_dpoly(pya.DPolygon(pya.DBox(0.0, -w/2.0, L1/2.0, w/2.0)) * (1.0/dbu)))
+    
+    p1 = pya.DPoint(L1/2.0, 0.0)
+    p2 = pya.DPoint(L1/2.0 + LB, -HB)
+    c1_x = p1.x + (p2.x - p1.x)/2.0
+    c2_x = p2.x - (p2.x - p1.x)/2.0
+    
+    n_pts = int(shape_reso) if shape_reso > 8 else 32
+    dpts = [pya.DPoint(p[0], p[1]) for p in compute_bezier_pts(p1.x, p1.y, c1_x, p1.y, c2_x, p2.y, p2.x, p2.y, n_pts)]
+    pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in dpts]
+    sbend_path = pya.Path(pts_itype, int(round(w/dbu)))
+    sShape.insert(sbend_path.simple_polygon())
+    sShape.merge()
+    
+    mirrored = sShape.dup().transform(pya.Trans(pya.Trans.M90, 0, 0))
+    sShape.insert(mirrored)
+    sShape.merge()
+    return sShape
+
+def draw_directional_coupler_4(layout, w, wE, g, L1, LB, HB, theta, x_trans, y_trans):
+    dbu = layout.dbu
+    shape_reso = 64.0
+    
+    clad_local = draw_directional_coupler_sbend(dbu, w + 2.0*wE, g, L1, LB, HB, shape_reso)
+    top_clad = clad_local.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    top_clad.transform(pya.Trans(0, int(round((g + w)/dbu))))
+    
+    clad_reg = pya.Region()
+    clad_reg.insert(clad_local)
+    clad_reg.insert(top_clad)
+    clad_reg.merge()
+    
+    core_local = draw_directional_coupler_sbend(dbu, w, g, L1, LB, HB, shape_reso)
+    top_core = core_local.dup().transform(pya.Trans(pya.Trans.R180, 0, 0))
+    top_core.transform(pya.Trans(0, int(round((g + w)/dbu))))
+    
+    core_reg = pya.Region()
+    core_reg.insert(core_local)
+    core_reg.insert(top_core)
+    core_reg.merge()
+    
+    clad_reg -= core_reg
+    clad_reg.transform(pya.Trans(0, int(round((-w/2.0 - g/2.0)/dbu))))
+    
+    final_region = pya.Region()
+    for poly in clad_reg.each():
+        pts = [pya.DPoint(p.x * dbu, p.y * dbu) for p in poly.each_point_hull()]
+        pts_trans = rotate_and_translate_dpoints(pts, theta, x_trans, y_trans)
+        pts_itype = [pya.Point(int(round(p.x/dbu)), int(round(p.y/dbu))) for p in pts_trans]
+        final_region.insert(pya.Polygon(pts_itype))
+        
+    final_region.merge()
+    return final_region
+
 
 
 
